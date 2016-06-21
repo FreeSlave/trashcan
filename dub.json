@@ -1,0 +1,10 @@
+{
+    "name": "trashcan",
+    "description": "Move files to trash can programmatically",
+    "copyright": "Copyright © 2016, freeslave",
+    "authors": ["freeslave"],
+    "dependencies": {
+        "xdgpaths" : "~>0.2.2"
+    },
+    "targetPath" : "bin"
+}
