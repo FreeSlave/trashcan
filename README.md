@@ -1,5 +1,7 @@
 # Trash can
 
+[![Build Status](https://travis-ci.org/MyLittleRobo/trashcan.svg?branch=master)](https://travis-ci.org/MyLittleRobo/trashcan)
+
 Move files and directories to trash can (Recycle bin) in D programming language. 
 Currently it contains only one function **moveToTrash** which places passed file or directory to trash can.
 
