@@ -8,13 +8,13 @@
 
 import std.path;
 import std.string;
+import std.file;
 
 import isfreedesktop;
 
-version(Posix)
+static if (isFreedesktop)
 {
 private:
-    import std.file : exists, write, rename;
     import std.format : format;
     @trusted string numberedBaseName(string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
