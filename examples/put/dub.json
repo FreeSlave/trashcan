@@ -1,0 +1,11 @@
+{
+    "name": "put",
+    "description": "A minimal D application.",
+    "copyright": "Copyright © 2016, freeslave",
+    "authors": ["freeslave"],
+    "targetPath" : "bin", 
+    "targetType" : "executable", 
+    "dependencies": {
+        "trashcan" : "*"
+    }
+}

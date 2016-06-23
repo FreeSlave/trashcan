@@ -6,6 +6,8 @@
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  */
 
+module trashcan;
+
 import std.path;
 import std.string;
 import std.file;
@@ -37,7 +39,7 @@ private:
     import core.sys.posix.dlfcn;
     
     struct FSRef {
-        char[80] hidden;    /* private to File Manager*/
+        char[80] hidden;
     };
     
     alias ubyte Boolean;
@@ -51,7 +53,7 @@ private:
 /**
  * Move file or directory to trash can. 
  * Params:
- *  path = Absolute path of item to remove.
+ *  path = Path of item to remove. Must be absolute.
  * Throws:
  *  Exception when given path is not absolute or does not exist or some error occured during operation.
  */
@@ -143,18 +145,6 @@ private:
             path.rename(trashFilePath);
         } else {
             static assert("Unsupported platform");
-        }
-    }
-}
-
-void main(string[] args)
-{
-    import std.stdio;
-    foreach(arg; args[1..$]) {
-        try {
-            moveToTrash(arg.absolutePath);
-        } catch(Exception e) {
-            stderr.writefln("Error while moving '%s' to trash: %s", arg, e.msg);
         }
     }
 }

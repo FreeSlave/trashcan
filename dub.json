@@ -1,10 +1,16 @@
 {
     "name": "trashcan",
     "description": "Move files to trash can programmatically",
-    "copyright": "Copyright © 2016, freeslave",
-    "authors": ["freeslave"],
+    "copyright": "Copyright © 2016, Roman Chistokhodov",
+    "license" : "BSL-1.0", 
+    "authors" : ["Roman Chistokhodov"], 
+    "targetPath" : "lib",
+    "targetType" : "library",
+    "targetName" : "trashcan",
+    
     "dependencies": {
         "xdgpaths" : "~>0.2.2"
     },
-    "targetPath" : "bin"
+    
+    "subPackages" : ["./examples/put"],
 }

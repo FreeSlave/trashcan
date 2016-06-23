@@ -18,8 +18,9 @@ matrix:
           os: osx
   
 script:
+    - dub build --compiler=${DC}
     - echo "Hello world!" > "to_delete.txt"
-    - dub run --compiler=${DC} -- "to_delete.txt"
+    - dub run :put --compiler=${DC} -- "to_delete.txt"
     - mkdir testdir
     - echo "Hello world!" > "testdir/hello.txt"
-    - dub run --compiler=${DC} -- "testdir"
+    - dub run :put --compiler=${DC} -- "testdir"
