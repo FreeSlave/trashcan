@@ -31,6 +31,23 @@ private:
     }
 }
 
+version(OSX)
+{
+private:
+    import core.sys.posix.dlfcn;
+    
+    struct FSRef {
+        char[80] hidden;    /* private to File Manager*/
+    };
+    
+    alias ubyte Boolean;
+    alias int OSStatus;
+    alias uint OptionBits;
+    
+    extern(C) @nogc @system OSStatus _dummy_FSPathMakeRefWithOptions(const(char)* path, OptionBits, FSRef*, Boolean*) nothrow {return 0;}
+    extern(C) @nogc @system OSStatus _dummy_FSMoveObjectToTrashSync(const(FSRef)*, FSRef*, OptionBits) nothrow {return 0;}
+}
+
 /**
  * Move file or directory to trash can. 
  * Params:
@@ -69,6 +86,30 @@ private:
             } else {
                 throw new Exception("File deletion error");
             }
+        }
+    } else version(OSX) {
+        import std.exception;
+        
+        void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
+        if (handle !is null) {
+            scope(exit) dlclose(handle);
+            
+            auto ptrFSPathMakeRefWithOptions = cast(typeof(&_dummy_FSPathMakeRefWithOptions))dlsym(handle, "FSPathMakeRefWithOptions");
+            if (ptrFSPathMakeRefWithOptions is null) {
+                throw new Exception(fromStringz(dlerror()).idup);
+            }
+            
+            auto ptrFSMoveObjectToTrashSync = cast(typeof(&_dummy_FSMoveObjectToTrashSync))dlsym(handle, "FSMoveObjectToTrashSync");
+            if (ptrFSMoveObjectToTrashSync is null) {
+                throw new Exception(fromStringz(dlerror()).idup);
+            }
+            
+            FSRef source;
+            enforce(ptrFSPathMakeRefWithOptions(toStringz(path), 1, &source, null) == 0, "Could not make FSRef from path");
+            FSRef target;
+            enforce(ptrFSMoveObjectToTrashSync(&source, &target, 0) == 0, "Could not move path to trash");
+        } else {
+            throw new Exception(fromStringz(dlerror()).idup);
         }
     } else {
         static if (isFreedesktop) {
