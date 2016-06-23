@@ -1,15 +1,25 @@
 language: d
+
+os:
+  - linux
+  - osx
+  
+d:
+  - dmd-2.069.2
+  - ldc-0.16.1
+  - gdc-4.9.2
+  
 matrix:
     allow_failures:
         - d: gdc-4.9.2
-        - d: ldc-0.15.1
-    include:
-        - d: dmd-2.069.2
-          env: USE_DOVERALLS=true
-        - d: dmd-2.067.1
+        - d: ldc-0.16.1
+    exclude:
         - d: gdc-4.9.2
-        - d: ldc-0.15.1
+          os: osx
   
 script:
-    - chmod +x travis-script.sh
-    - ./travis-script.sh
+    - echo "Hello world!" > "to_delete.txt"
+    - dub run --compiler=${DC} -- "to_delete.txt"
+    - mkdir testdir
+    - echo "Hello world!" > "testdir/hello.txt"
+    - dub run --compiler=${DC} -- "testdir"
