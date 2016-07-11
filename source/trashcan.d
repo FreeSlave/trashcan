@@ -17,6 +17,7 @@ import isfreedesktop;
 static if (isFreedesktop)
 {
 private:
+    import std.exception;
     import std.format : format;
     @trusted string numberedBaseName(string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
@@ -30,6 +31,61 @@ private:
     
     @trusted string escapeValue(string value) pure {
         return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
+    }
+    
+    import core.sys.posix.sys.types;
+    import core.sys.posix.sys.stat;
+    import core.sys.posix.unistd;
+    
+    @trusted string topDir(string path)
+    in {
+        assert(path.isAbsolute);
+    }
+    body {
+        auto current = path;
+        stat_t currentStat;
+        if (stat(current.toStringz, &currentStat) != 0) {
+            return null;
+        }
+        stat_t parentStat;
+        while(current != "/") {
+            string parent = current.dirName;
+            if (stat(parent.toStringz, &parentStat) != 0) {
+                return null;
+            }
+            if (currentStat.st_dev != parentStat.st_dev) {
+                return current;
+            }
+            current = parent;
+        }
+        return current;
+    }
+    
+    @trusted string checkDiskTrash(string topdir)
+    in {
+        assert(topdir.length);
+    }
+    body {
+        string trashDir = buildPath(topdir, ".Trash");
+        stat_t trashStat;
+        if (stat(trashDir.toStringz, &trashStat) != 0) {
+            return null;
+        }
+        if (S_ISLNK(trashStat.st_mode) || ((trashStat.st_mode & S_ISVTX) != 0)) {
+            return null;
+        }
+        return trashDir;
+    }
+    
+    @trusted string ensureUserTrashDir(string trashDir)
+    {
+        string userTrashDir = buildPath(trashDir, format("%s", getuid()));
+        bool ok;
+        collectException(userTrashDir.isDir(), ok);
+        if (!ok) {
+            mkdirRecurse(userTrashDir);
+        }
+        return userTrashDir;
     }
 }
 
