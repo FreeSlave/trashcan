@@ -14,6 +14,37 @@ import std.file;
 
 import isfreedesktop;
 
+/**
+ * Flags to rule the trashing behavior.
+ * 
+ * $(BLUE Valid only for freedesktop environments).
+ * 
+ * See_Also: $(LINK2 https://specifications.freedesktop.org/trash-spec/trashspec-1.0.html, Trash specification).
+ */
+enum TrashOptions : int
+{
+    /**
+     * If file that needs to be deleted resides on non-home partition 
+     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
+     * don't provide any fallback, just throw an exception.
+     * 
+     * This can be used to report errors to administrator or user.
+     */
+    noFallbacks = 0,
+    /**
+     * If file that needs to be deleted resides on non-home partition 
+     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
+     * fallback to user top trash directory ($topdir/.Trash-$uid).
+     */
+    fallbackToUserDir = 1,
+    /**
+     * If file that needs to be deleted resides on non-home partition 
+     * and checks for top trash directories failed,
+     * fallback to home trash directory.
+     */
+    fallbackToHomeDir = 2
+}
+
 static if (isFreedesktop)
 {
 private:
@@ -33,6 +64,11 @@ private:
         return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
     }
     
+    @trusted string ensureDirExists(string dir) {
+        std.file.mkdirRecurse(dir);
+        return dir;
+    }
+    
     import core.sys.posix.sys.types;
     import core.sys.posix.sys.stat;
     import core.sys.posix.unistd;
@@ -50,7 +86,7 @@ private:
         stat_t parentStat;
         while(current != "/") {
             string parent = current.dirName;
-            if (stat(parent.toStringz, &parentStat) != 0) {
+            if (lstat(parent.toStringz, &parentStat) != 0) {
                 return null;
             }
             if (currentStat.st_dev != parentStat.st_dev) {
@@ -68,24 +104,23 @@ private:
     body {
         string trashDir = buildPath(topdir, ".Trash");
         stat_t trashStat;
-        if (stat(trashDir.toStringz, &trashStat) != 0) {
-            return null;
-        }
-        if (S_ISLNK(trashStat.st_mode) || ((trashStat.st_mode & S_ISVTX) != 0)) {
-            return null;
-        }
+        enforce(lstat(trashDir.toStringz, &trashStat) == 0, "Top trash directory does not exist");
+        enforce(S_ISDIR(trashStat.st_mode), "Top trash path is not a directory");
+        enforce(!S_ISLNK(trashStat.st_mode), "Top trash directory is a symbolic link");
+        enforce((trashStat.st_mode & S_ISVTX) != 0, "Top trash directory must have sticky bit");
         return trashDir;
     }
     
-    @trusted string ensureUserTrashDir(string trashDir)
+    @trusted string ensureUserTrashSubdir(string trashDir)
     {
         string userTrashDir = buildPath(trashDir, format("%s", getuid()));
-        bool ok;
-        collectException(userTrashDir.isDir(), ok);
-        if (!ok) {
-            mkdirRecurse(userTrashDir);
-        }
-        return userTrashDir;
+        return ensureDirExists(userTrashDir);
+    }
+    
+    @trusted string ensureUserTrashDir(string topdir)
+    {
+        string userTrashDir = buildPath(topdir, format(".Trash-%s", getuid()));
+        return ensureDirExists(userTrashDir);
     }
 }
 
@@ -113,7 +148,7 @@ private:
  * Throws:
  *  Exception when given path is not absolute or does not exist or some error occured during operation.
  */
-@trusted void moveToTrash(string path)
+@trusted void moveToTrash(string path, TrashOptions options = (TrashOptions.fallbackToUserDir | TrashOptions.fallbackToHomeDir))
 {
     if (!path.isAbsolute) {
         throw new Exception("Path must be absolute");
@@ -173,14 +208,48 @@ private:
         static if (isFreedesktop) {
             import xdgpaths;
             
-            string trashInfoDir = xdgDataHome("Trash/info", true);
-            if (!trashInfoDir.length) {
-                throw new Exception("Could not access trash info folder");
+            string dataPath = xdgDataHome(null, true);
+            if (!dataPath.length) {
+                throw new Exception("Could not access data folder");
             }
-            string trashFilePathsDir = xdgDataHome("Trash/files", true);
-            if (!trashFilePathsDir.length) {
-                throw new Exception("Could not access trash files folder");
+            dataPath = dataPath.absolutePath;
+            
+            string dataTopDir = topDir(dataPath);
+            string fileTopDir = topDir(path);
+            
+            enforce(fileTopDir.length, "Could not get topdir of file being trashed");
+            enforce(dataTopDir.length, "Could not get topdir of home data directory");
+            
+            string trashBasePath;
+            if (dataTopDir != fileTopDir) {
+                try {
+                    string diskTrash = checkDiskTrash(fileTopDir);
+                    trashBasePath = ensureUserTrashSubdir(diskTrash);
+                } catch(Exception e) {
+                    try {
+                        if ((options & TrashOptions.fallbackToUserDir) != 0) {
+                            trashBasePath = ensureUserTrashDir(fileTopDir);
+                        } else {
+                            throw e;
+                        }
+                    } catch(Exception e) {
+                        if ((options & TrashOptions.fallbackToHomeDir) != 0) {
+                            trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+            } else {
+                trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
             }
+            
+            if (!trashBasePath.length) {
+                throw new Exception("Could not access base trash folder");
+            }
+            
+            string trashInfoDir = ensureDirExists(buildPath(trashBasePath, "info"));
+            string trashFilePathsDir = ensureDirExists(buildPath(trashBasePath, "files"));
             
             string trashInfoPath = buildPath(trashInfoDir, path.baseName ~ ".trashinfo");
             string trashFilePath = buildPath(trashFilePathsDir, path.baseName);

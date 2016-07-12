@@ -19,7 +19,6 @@ Other platforms are not supported.
 
 * Interface for observing the trash can contents (something like VFS).
 * Ability to restore deleted files.
-* Better compatibility with specification on freedesktop.
 
 ## Examples
 
