@@ -11,6 +11,7 @@ module trashcan;
 import std.path;
 import std.string;
 import std.file;
+import std.exception;
 
 import isfreedesktop;
 
@@ -24,32 +25,55 @@ import isfreedesktop;
 enum TrashOptions : int
 {
     /**
-     * If file that needs to be deleted resides on non-home partition 
-     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
-     * don't provide any fallback, just throw an exception.
-     * 
-     * This can be used to report errors to administrator or user.
+     * No options. Just move file to user home trash directory 
+     * not paying attention to partition where file resides.
      */
-    noFallbacks = 0,
+    none = 0,
     /**
      * If file that needs to be deleted resides on non-home partition 
      * and top trash directory ($topdir/.Trash/$uid) failed some check, 
      * fallback to user top trash directory ($topdir/.Trash-$uid).
+     * 
+     * Makes sense only in conjunction with $(D useTopDirs).
      */
     fallbackToUserDir = 1,
     /**
      * If file that needs to be deleted resides on non-home partition 
      * and checks for top trash directories failed,
      * fallback to home trash directory.
+     * 
+     * Makes sense only in conjunction with $(D useTopDirs).
      */
-    fallbackToHomeDir = 2
+    fallbackToHomeDir = 2,
+    
+    /**
+     * Whether to use top trash directories at all.
+     * 
+     * If no $(D fallbackToUserDir) nor $(D fallbackToHomeDir) flags are set, 
+     * and file that needs to be deleted resides on non-home partition, 
+     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
+     * exception will be thrown. This can be used to report errors to administrator or user.
+     */
+    useTopDirs = 4,
+    
+    /**
+     * Whether to check presence of 'sticky bit' on $topdir/.Trash directory.
+     * 
+     * Makes sense only in conjunction with $(D useTopDirs).
+     */
+    checkStickyBit = 8,
+    
+    /**
+     * 
+     */
+    all = (TrashOptions.fallbackToUserDir | TrashOptions.fallbackToHomeDir | TrashOptions.checkStickyBit | TrashOptions.useTopDirs)
 }
 
 static if (isFreedesktop)
 {
 private:
-    import std.exception;
     import std.format : format;
+    
     @trusted string numberedBaseName(string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
     }
@@ -64,6 +88,11 @@ private:
         return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
     }
     
+    unittest 
+    {
+        assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`);
+    }
+    
     @trusted string ensureDirExists(string dir) {
         std.file.mkdirRecurse(dir);
         return dir;
@@ -76,6 +105,11 @@ private:
     @trusted string topDir(string path)
     in {
         assert(path.isAbsolute);
+    }
+    out(result) {
+        if (result.length) {
+            assert(result.isAbsolute);
+        }
     }
     body {
         auto current = path;
@@ -97,7 +131,24 @@ private:
         return current;
     }
     
-    @trusted string checkDiskTrash(string topdir)
+    void checkDiskTrashMode(mode_t mode, const bool checkStickyBit = true)
+    {
+        enforce(!S_ISLNK(mode), "Top trash directory is a symbolic link");
+        enforce(S_ISDIR(mode), "Top trash path is not a directory");
+        if (checkStickyBit) {
+            enforce((mode & S_ISVTX) != 0, "Top trash directory does not have sticky bit");
+        }
+    }
+    
+    unittest
+    {
+        assertThrown(checkDiskTrashMode(S_IFLNK|S_ISVTX));
+        assertThrown(checkDiskTrashMode(S_IFDIR));
+        assertNotThrown(checkDiskTrashMode(S_IFDIR|S_ISVTX));
+        assertNotThrown(checkDiskTrashMode(S_IFDIR, false));
+    }
+    
+    @trusted string checkDiskTrash(string topdir, const bool checkStickyBit = true)
     in {
         assert(topdir.length);
     }
@@ -105,22 +156,36 @@ private:
         string trashDir = buildPath(topdir, ".Trash");
         stat_t trashStat;
         enforce(lstat(trashDir.toStringz, &trashStat) == 0, "Top trash directory does not exist");
-        enforce(S_ISDIR(trashStat.st_mode), "Top trash path is not a directory");
-        enforce(!S_ISLNK(trashStat.st_mode), "Top trash directory is a symbolic link");
-        enforce((trashStat.st_mode & S_ISVTX) != 0, "Top trash directory must have sticky bit");
+        checkDiskTrashMode(trashStat.st_mode);
         return trashDir;
+    }
+    
+    string userTrashSubdir(string trashDir, uid_t uid) {
+        return buildPath(trashDir, format("%s", uid));
+    }
+    
+    unittest
+    {
+        assert(userTrashSubdir("/.Trash", 600) == buildPath("/.Trash", "600"));
     }
     
     @trusted string ensureUserTrashSubdir(string trashDir)
     {
-        string userTrashDir = buildPath(trashDir, format("%s", getuid()));
-        return ensureDirExists(userTrashDir);
+        return userTrashSubdir(trashDir, getuid()).ensureDirExists();
+    }
+    
+    string userTrashDir(string topdir, uid_t uid) {
+        return buildPath(topdir, format(".Trash-%s", uid));
+    }
+    
+    unittest
+    {
+        assert(userTrashDir("/topdir", 700) == buildPath("/topdir", ".Trash-700"));
     }
     
     @trusted string ensureUserTrashDir(string topdir)
     {
-        string userTrashDir = buildPath(topdir, format(".Trash-%s", getuid()));
-        return ensureDirExists(userTrashDir);
+        return userTrashDir(topdir, getuid()).ensureDirExists();
     }
 }
 
@@ -145,10 +210,11 @@ private:
  * Move file or directory to trash can. 
  * Params:
  *  path = Path of item to remove. Must be absolute.
+ *  options = Control behavior of trashing on freedesktop environments.
  * Throws:
  *  Exception when given path is not absolute or does not exist or some error occured during operation.
  */
-@trusted void moveToTrash(string path, TrashOptions options = (TrashOptions.fallbackToUserDir | TrashOptions.fallbackToHomeDir))
+@trusted void moveToTrash(string path, TrashOptions options = TrashOptions.all)
 {
     if (!path.isAbsolute) {
         throw new Exception("Path must be absolute");
@@ -214,39 +280,39 @@ private:
             }
             dataPath = dataPath.absolutePath;
             
-            string dataTopDir = topDir(dataPath);
-            string fileTopDir = topDir(path);
-            
-            enforce(fileTopDir.length, "Could not get topdir of file being trashed");
-            enforce(dataTopDir.length, "Could not get topdir of home data directory");
-            
             string trashBasePath;
-            if (dataTopDir != fileTopDir) {
-                try {
-                    string diskTrash = checkDiskTrash(fileTopDir);
-                    trashBasePath = ensureUserTrashSubdir(diskTrash);
-                } catch(Exception e) {
+            
+            if ((options & TrashOptions.useTopDirs) != 0) {
+                string dataTopDir = topDir(dataPath);
+                string fileTopDir = topDir(path);
+                
+                enforce(fileTopDir.length, "Could not get topdir of file being trashed");
+                enforce(dataTopDir.length, "Could not get topdir of home data directory");
+                
+                if (dataTopDir != fileTopDir) {
                     try {
-                        if ((options & TrashOptions.fallbackToUserDir) != 0) {
-                            trashBasePath = ensureUserTrashDir(fileTopDir);
-                        } else {
-                            throw e;
-                        }
+                        string diskTrash = checkDiskTrash(fileTopDir, (options & TrashOptions.checkStickyBit) != 0);
+                        trashBasePath = ensureUserTrashSubdir(diskTrash);
                     } catch(Exception e) {
-                        if ((options & TrashOptions.fallbackToHomeDir) != 0) {
-                            trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
-                        } else {
-                            throw e;
+                        try {
+                            if ((options & TrashOptions.fallbackToUserDir) != 0) {
+                                trashBasePath = ensureUserTrashDir(fileTopDir);
+                            } else {
+                                throw e;
+                            }
+                        } catch(Exception e) {
+                            if (!(options & TrashOptions.fallbackToHomeDir)) {
+                                throw e;
+                            }
                         }
                     }
                 }
-            } else {
-                trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
             }
             
-            if (!trashBasePath.length) {
-                throw new Exception("Could not access base trash folder");
+            if (trashBasePath is null) {
+                trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
             }
+            enforce(trashBasePath.length, "Could not access base trash folder");
             
             string trashInfoDir = ensureDirExists(buildPath(trashBasePath, "info"));
             string trashFilePathsDir = ensureDirExists(buildPath(trashBasePath, "files"));
@@ -272,4 +338,9 @@ private:
             static assert("Unsupported platform");
         }
     }
+}
+
+unittest
+{
+    assertThrown(moveToTrash("notabsolute"));
 }

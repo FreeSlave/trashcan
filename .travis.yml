@@ -7,14 +7,12 @@ os:
 d:
   - dmd-2.069.2
   - ldc-0.16.1
-  - gdc-4.9.2
   
 matrix:
     allow_failures:
-        - d: gdc-4.9.2
         - d: ldc-0.16.1
     exclude:
-        - d: gdc-4.9.2
+        - d: ldc-0.16.1
           os: osx
   
 script:
