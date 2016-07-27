@@ -64,7 +64,7 @@ enum TrashOptions : int
     checkStickyBit = 8,
     
     /**
-     * 
+     * All flags set.
      */
     all = (TrashOptions.fallbackToUserDir | TrashOptions.fallbackToHomeDir | TrashOptions.checkStickyBit | TrashOptions.useTopDirs)
 }
@@ -101,6 +101,7 @@ private:
     import core.sys.posix.sys.types;
     import core.sys.posix.sys.stat;
     import core.sys.posix.unistd;
+    import core.sys.posix.fcntl;
     
     @trusted string topDir(string path)
     in {
@@ -247,8 +248,6 @@ private:
             }
         }
     } else version(OSX) {
-        import std.exception;
-        
         void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
         if (handle !is null) {
             scope(exit) dlclose(handle);
@@ -329,10 +328,18 @@ private:
             }
             
             import std.datetime;
+            import std.conv : octal;
+            
             auto currentTime = Clock.currTime;
             currentTime.fracSecs = Duration.zero;
-            string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), currentTime.toISOExtString());
-            write(trashInfoPath, contents);
+            string timeString = currentTime.toISOExtString();
+            string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), timeString);
+            
+            auto mode = O_CREAT | O_WRONLY | O_EXCL;
+            auto fd = open(toStringz(trashInfoPath), mode, octal!666);
+            errnoEnforce(fd != 0);
+            errnoEnforce(write(fd, contents.ptr, contents.length) == contents.length);
+            
             path.rename(trashFilePath);
         } else {
             static assert("Unsupported platform");
