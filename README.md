@@ -1,6 +1,6 @@
 # Trash can
 
-[![Build Status](https://travis-ci.org/FreeSlave/trashcan.svg?branch=master)](https://travis-ci.org/FreeSlave/trashcan)
+[![Build Status](https://travis-ci.org/FreeSlave/trashcan.svg?branch=master)](https://travis-ci.org/FreeSlave/trashcan) [![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/FreeSlave/trashcan?branch=master&svg=true)](https://ci.appveyor.com/project/FreeSlave/trashcan)
 
 Move files and directories to trash can (Recycle bin) in D programming language. 
 Currently it contains only one function **moveToTrash** which places passed file or directory to trash can.
