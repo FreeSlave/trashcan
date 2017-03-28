@@ -335,9 +335,10 @@ private:
             string timeString = currentTime.toISOExtString();
             string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), timeString);
             
-            auto mode = O_CREAT | O_WRONLY | O_EXCL;
-            auto fd = open(toStringz(trashInfoPath), mode, octal!666);
-            errnoEnforce(fd != 0);
+            const mode = O_CREAT | O_WRONLY | O_EXCL;
+            auto fd = .open(toStringz(trashInfoPath), mode, octal!666);
+            errnoEnforce(fd != -1);
+            scope(exit) .close(fd);
             errnoEnforce(write(fd, contents.ptr, contents.length) == contents.length);
             
             path.rename(trashFilePath);
