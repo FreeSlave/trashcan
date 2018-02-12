@@ -2,7 +2,7 @@
  * Moving files and directories to trash can.
  * Copyright:
  *  Roman Chistokhodov, 2016
- * License: 
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  */
 
@@ -17,52 +17,52 @@ import isfreedesktop;
 
 /**
  * Flags to rule the trashing behavior.
- * 
+ *
  * $(BLUE Valid only for freedesktop environments).
- * 
+ *
  * See_Also: $(LINK2 https://specifications.freedesktop.org/trash-spec/trashspec-1.0.html, Trash specification).
  */
 enum TrashOptions : int
 {
     /**
-     * No options. Just move file to user home trash directory 
+     * No options. Just move file to user home trash directory
      * not paying attention to partition where file resides.
      */
     none = 0,
     /**
-     * If file that needs to be deleted resides on non-home partition 
-     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
+     * If file that needs to be deleted resides on non-home partition
+     * and top trash directory ($topdir/.Trash/$uid) failed some check,
      * fallback to user top trash directory ($topdir/.Trash-$uid).
-     * 
+     *
      * Makes sense only in conjunction with $(D useTopDirs).
      */
     fallbackToUserDir = 1,
     /**
-     * If file that needs to be deleted resides on non-home partition 
+     * If file that needs to be deleted resides on non-home partition
      * and checks for top trash directories failed,
      * fallback to home trash directory.
-     * 
+     *
      * Makes sense only in conjunction with $(D useTopDirs).
      */
     fallbackToHomeDir = 2,
-    
+
     /**
      * Whether to use top trash directories at all.
-     * 
-     * If no $(D fallbackToUserDir) nor $(D fallbackToHomeDir) flags are set, 
-     * and file that needs to be deleted resides on non-home partition, 
-     * and top trash directory ($topdir/.Trash/$uid) failed some check, 
+     *
+     * If no $(D fallbackToUserDir) nor $(D fallbackToHomeDir) flags are set,
+     * and file that needs to be deleted resides on non-home partition,
+     * and top trash directory ($topdir/.Trash/$uid) failed some check,
      * exception will be thrown. This can be used to report errors to administrator or user.
      */
     useTopDirs = 4,
-    
+
     /**
      * Whether to check presence of 'sticky bit' on $topdir/.Trash directory.
-     * 
+     *
      * Makes sense only in conjunction with $(D useTopDirs).
      */
     checkStickyBit = 8,
-    
+
     /**
      * All flags set.
      */
@@ -73,36 +73,36 @@ static if (isFreedesktop)
 {
 private:
     import std.format : format;
-    
+
     @trusted string numberedBaseName(string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
     }
-    
+
     unittest
     {
         assert(numberedBaseName("/root/file.ext", 1) == "file 1.ext");
         assert(numberedBaseName("/root/file", 2) == "file 2");
     }
-    
+
     @trusted string escapeValue(string value) pure {
         return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
     }
-    
-    unittest 
+
+    unittest
     {
         assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`);
     }
-    
+
     @trusted string ensureDirExists(string dir) {
         std.file.mkdirRecurse(dir);
         return dir;
     }
-    
+
     import core.sys.posix.sys.types;
     import core.sys.posix.sys.stat;
     import core.sys.posix.unistd;
     import core.sys.posix.fcntl;
-    
+
     @trusted string topDir(string path)
     in {
         assert(path.isAbsolute);
@@ -131,7 +131,7 @@ private:
         }
         return current;
     }
-    
+
     void checkDiskTrashMode(mode_t mode, const bool checkStickyBit = true)
     {
         enforce(!S_ISLNK(mode), "Top trash directory is a symbolic link");
@@ -140,7 +140,7 @@ private:
             enforce((mode & S_ISVTX) != 0, "Top trash directory does not have sticky bit");
         }
     }
-    
+
     unittest
     {
         assertThrown(checkDiskTrashMode(S_IFLNK|S_ISVTX));
@@ -148,7 +148,7 @@ private:
         assertNotThrown(checkDiskTrashMode(S_IFDIR|S_ISVTX));
         assertNotThrown(checkDiskTrashMode(S_IFDIR, false));
     }
-    
+
     @trusted string checkDiskTrash(string topdir, const bool checkStickyBit = true)
     in {
         assert(topdir.length);
@@ -160,30 +160,30 @@ private:
         checkDiskTrashMode(trashStat.st_mode, checkStickyBit);
         return trashDir;
     }
-    
+
     string userTrashSubdir(string trashDir, uid_t uid) {
         return buildPath(trashDir, format("%s", uid));
     }
-    
+
     unittest
     {
         assert(userTrashSubdir("/.Trash", 600) == buildPath("/.Trash", "600"));
     }
-    
+
     @trusted string ensureUserTrashSubdir(string trashDir)
     {
         return userTrashSubdir(trashDir, getuid()).ensureDirExists();
     }
-    
+
     string userTrashDir(string topdir, uid_t uid) {
         return buildPath(topdir, format(".Trash-%s", uid));
     }
-    
+
     unittest
     {
         assert(userTrashDir("/topdir", 700) == buildPath("/topdir", ".Trash-700"));
     }
-    
+
     @trusted string ensureUserTrashDir(string topdir)
     {
         return userTrashDir(topdir, getuid()).ensureDirExists();
@@ -194,21 +194,21 @@ version(OSX)
 {
 private:
     import core.sys.posix.dlfcn;
-    
+
     struct FSRef {
         char[80] hidden;
     };
-    
+
     alias ubyte Boolean;
     alias int OSStatus;
     alias uint OptionBits;
-    
+
     extern(C) @nogc @system OSStatus _dummy_FSPathMakeRefWithOptions(const(char)* path, OptionBits, FSRef*, Boolean*) nothrow {return 0;}
     extern(C) @nogc @system OSStatus _dummy_FSMoveObjectToTrashSync(const(FSRef)*, FSRef*, OptionBits) nothrow {return 0;}
 }
 
 /**
- * Move file or directory to trash can. 
+ * Move file or directory to trash can.
  * Params:
  *  path = Path of item to remove. Must be absolute.
  *  options = Control behavior of trashing on freedesktop environments.
@@ -223,14 +223,14 @@ private:
     if (!path.exists) {
         throw new Exception("Path does not exist");
     }
-    
+
     version(Windows) {
         import core.sys.windows.shellapi;
         import core.sys.windows.winbase;
         import core.stdc.wchar_;
         import std.windows.syserror;
         import std.utf;
-        
+
         SHFILEOPSTRUCTW fileOp;
         fileOp.wFunc = FO_DELETE;
         fileOp.fFlags = FOF_SILENT | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_NOCONFIRMMKDIR | FOF_ALLOWUNDO;
@@ -240,7 +240,7 @@ private:
         if (r != 0) {
             wchar[1024] msg;
             auto len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, null, r, 0, msg.ptr, msg.length - 1, null);
-            
+
             if (len) {
                 throw new Exception(msg[0..len].toUTF8().stripRight);
             } else {
@@ -251,17 +251,17 @@ private:
         void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
         if (handle !is null) {
             scope(exit) dlclose(handle);
-            
+
             auto ptrFSPathMakeRefWithOptions = cast(typeof(&_dummy_FSPathMakeRefWithOptions))dlsym(handle, "FSPathMakeRefWithOptions");
             if (ptrFSPathMakeRefWithOptions is null) {
                 throw new Exception(fromStringz(dlerror()).idup);
             }
-            
+
             auto ptrFSMoveObjectToTrashSync = cast(typeof(&_dummy_FSMoveObjectToTrashSync))dlsym(handle, "FSMoveObjectToTrashSync");
             if (ptrFSMoveObjectToTrashSync is null) {
                 throw new Exception(fromStringz(dlerror()).idup);
             }
-            
+
             FSRef source;
             enforce(ptrFSPathMakeRefWithOptions(toStringz(path), 1, &source, null) == 0, "Could not make FSRef from path");
             FSRef target;
@@ -272,22 +272,22 @@ private:
     } else {
         static if (isFreedesktop) {
             import xdgpaths;
-            
+
             string dataPath = xdgDataHome(null, true);
             if (!dataPath.length) {
                 throw new Exception("Could not access data folder");
             }
             dataPath = dataPath.absolutePath;
-            
+
             string trashBasePath;
-            
+
             if ((options & TrashOptions.useTopDirs) != 0) {
                 string dataTopDir = topDir(dataPath);
                 string fileTopDir = topDir(path);
-                
+
                 enforce(fileTopDir.length, "Could not get topdir of file being trashed");
                 enforce(dataTopDir.length, "Could not get topdir of home data directory");
-                
+
                 if (dataTopDir != fileTopDir) {
                     try {
                         string diskTrash = checkDiskTrash(fileTopDir, (options & TrashOptions.checkStickyBit) != 0);
@@ -307,40 +307,40 @@ private:
                     }
                 }
             }
-            
+
             if (trashBasePath is null) {
                 trashBasePath = ensureDirExists(buildPath(dataPath, "Trash"));
             }
             enforce(trashBasePath.length, "Could not access base trash folder");
-            
+
             string trashInfoDir = ensureDirExists(buildPath(trashBasePath, "info"));
             string trashFilePathsDir = ensureDirExists(buildPath(trashBasePath, "files"));
-            
+
             string trashInfoPath = buildPath(trashInfoDir, path.baseName ~ ".trashinfo");
             string trashFilePath = buildPath(trashFilePathsDir, path.baseName);
             uint number = 1;
-            
+
             while(trashInfoPath.exists || trashFilePath.exists) {
                 string baseName = numberedBaseName(path, number);
                 trashInfoPath = buildPath(trashInfoDir, baseName ~ ".trashinfo");
                 trashFilePath = buildPath(trashFilePathsDir, baseName);
                 number++;
             }
-            
+
             import std.datetime;
             import std.conv : octal;
-            
+
             auto currentTime = Clock.currTime;
             currentTime.fracSecs = Duration.zero;
             string timeString = currentTime.toISOExtString();
             string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), timeString);
-            
+
             const mode = O_CREAT | O_WRONLY | O_EXCL;
             auto fd = .open(toStringz(trashInfoPath), mode, octal!666);
             errnoEnforce(fd != -1);
             scope(exit) .close(fd);
             errnoEnforce(write(fd, contents.ptr, contents.length) == contents.length);
-            
+
             path.rename(trashFilePath);
         } else {
             static assert("Unsupported platform");
