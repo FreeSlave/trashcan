@@ -318,17 +318,10 @@ private:
 
             string trashInfoPath = buildPath(trashInfoDir, path.baseName ~ ".trashinfo");
             string trashFilePath = buildPath(trashFilePathsDir, path.baseName);
-            uint number = 1;
-
-            while(trashInfoPath.exists || trashFilePath.exists) {
-                string baseName = numberedBaseName(path, number);
-                trashInfoPath = buildPath(trashInfoDir, baseName ~ ".trashinfo");
-                trashFilePath = buildPath(trashFilePathsDir, baseName);
-                number++;
-            }
 
             import std.datetime;
             import std.conv : octal;
+            import core.stdc.errno;
 
             auto currentTime = Clock.currTime;
             currentTime.fracSecs = Duration.zero;
@@ -336,7 +329,14 @@ private:
             string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), timeString);
 
             const mode = O_CREAT | O_WRONLY | O_EXCL;
-            auto fd = .open(toStringz(trashInfoPath), mode, octal!666);
+            int fd;
+            uint number = 1;
+            while(trashFilePath.exists || ((fd = .open(toStringz(trashInfoPath), mode, octal!666)) == -1 && errno == EEXIST)) {
+                string baseName = numberedBaseName(path, number);
+                trashFilePath = buildPath(trashFilePathsDir, baseName);
+                trashInfoPath = buildPath(trashInfoDir, baseName ~ ".trashinfo");
+                number++;
+            }
             errnoEnforce(fd != -1);
             scope(exit) .close(fd);
             errnoEnforce(write(fd, contents.ptr, contents.length) == contents.length);
