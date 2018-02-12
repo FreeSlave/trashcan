@@ -157,7 +157,7 @@ private:
         string trashDir = buildPath(topdir, ".Trash");
         stat_t trashStat;
         enforce(lstat(trashDir.toStringz, &trashStat) == 0, "Top trash directory does not exist");
-        checkDiskTrashMode(trashStat.st_mode);
+        checkDiskTrashMode(trashStat.st_mode, checkStickyBit);
         return trashDir;
     }
     
