@@ -84,15 +84,6 @@ private:
         assert(numberedBaseName("/root/file", 2) == "file 2");
     }
 
-    @trusted string escapeValue(string value) pure {
-        return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
-    }
-
-    unittest
-    {
-        assert("a\\next\nline\top".escapeValue() == `a\\next\nline\top`);
-    }
-
     @trusted string ensureDirExists(string dir) {
         std.file.mkdirRecurse(dir);
         return dir;
@@ -280,10 +271,12 @@ private:
             dataPath = dataPath.absolutePath;
 
             string trashBasePath;
+            bool usingTopdir = false;
+            string fileTopDir;
 
             if ((options & TrashOptions.useTopDirs) != 0) {
                 string dataTopDir = topDir(dataPath);
-                string fileTopDir = topDir(path);
+                fileTopDir = topDir(path);
 
                 enforce(fileTopDir.length, "Could not get topdir of file being trashed");
                 enforce(dataTopDir.length, "Could not get topdir of home data directory");
@@ -292,10 +285,12 @@ private:
                     try {
                         string diskTrash = checkDiskTrash(fileTopDir, (options & TrashOptions.checkStickyBit) != 0);
                         trashBasePath = ensureUserTrashSubdir(diskTrash);
+                        usingTopdir = true;
                     } catch(Exception e) {
                         try {
                             if ((options & TrashOptions.fallbackToUserDir) != 0) {
                                 trashBasePath = ensureUserTrashDir(fileTopDir);
+                                usingTopdir = true;
                             } else {
                                 throw e;
                             }
@@ -321,12 +316,13 @@ private:
 
             import std.datetime;
             import std.conv : octal;
+            import std.uri;
             import core.stdc.errno;
 
             auto currentTime = Clock.currTime;
             currentTime.fracSecs = Duration.zero;
             string timeString = currentTime.toISOExtString();
-            string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", path.escapeValue(), timeString);
+            string contents = format("[Trash Info]\nPath=%s\nDeletionDate=%s\n", (usingTopdir ? path.relativePath(fileTopDir) : path).encode(), timeString);
 
             const mode = O_CREAT | O_WRONLY | O_EXCL;
             int fd;
