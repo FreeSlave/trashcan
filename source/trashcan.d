@@ -229,14 +229,8 @@ private:
         fileOp.pFrom = wFileName.ptr;
         int r = SHFileOperation(&fileOp);
         if (r != 0) {
-            wchar[1024] msg;
-            auto len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, null, r, 0, msg.ptr, msg.length - 1, null);
-
-            if (len) {
-                throw new Exception(msg[0..len].toUTF8().stripRight);
-            } else {
-                throw new Exception("File deletion error");
-            }
+            import std.format;
+            throw new Exception(format("SHFileOperation failed with error code %d", r));
         }
     } else version(OSX) {
         void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
