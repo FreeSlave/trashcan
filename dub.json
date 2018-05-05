@@ -7,10 +7,8 @@
     "targetPath" : "lib",
     "targetType" : "library",
     "targetName" : "trashcan",
-    
+
     "dependencies": {
-        "xdgpaths" : "~>0.2.2"
+        "xdgpaths" : "~>0.2.5"
     },
-    
-    "subPackages" : ["./examples/put"],
 }

@@ -26,4 +26,4 @@ Other platforms are not supported.
 
 Run to put file or directory to trash can:
 
-    dub run :put -- path/to/file
+    dub examples/put.d path/to/file

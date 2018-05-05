@@ -2,10 +2,10 @@ platform: x64
 environment:
  matrix:
   - DC: dmd
-    DVersion: 2.071.0
+    DVersion: 2.077.1
     arch: x64
   - DC: dmd
-    DVersion: 2.071.0
+    DVersion: 2.077.1
     arch: x86
 
 skip_tags: true
@@ -86,3 +86,4 @@ test_script:
  - echo %PATH%
  - '%DC% --version'
  - dub test --arch=%Darch% --compiler=%DC%
+ - dub --single examples/put.d --arch=%Darch% --compiler=%DC% README.md
