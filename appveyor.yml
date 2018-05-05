@@ -86,4 +86,5 @@ test_script:
  - echo %PATH%
  - '%DC% --version'
  - dub test --arch=%Darch% --compiler=%DC%
+ - dub build --arch=%Darch% --compiler=%DC%
  - dub --single examples/put.d --arch=%Darch% --compiler=%DC% -- README.md
