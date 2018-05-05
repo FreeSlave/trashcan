@@ -22,7 +22,7 @@ Other platforms are not supported.
 
 ## Examples
 
-### [Put to trash can](examples/put/source/app.d)
+### [Put to trash can](examples/put.d)
 
 Run to put file or directory to trash can:
 
