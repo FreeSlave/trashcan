@@ -346,233 +346,233 @@ unittest
 
 version(Windows)
 {
-	import std.utf : toUTF8;
-	import std.typecons : RefCounted, refCounted, RefCountedAutoInitialize;
-	import std.windows.syserror : WindowsException;
+    import std.utf : toUTF8;
+    import std.typecons : RefCounted, refCounted, RefCountedAutoInitialize;
+    import std.windows.syserror : WindowsException;
 
-	import core.sys.windows.windows;
-	import core.sys.windows.shlobj;
+    import core.sys.windows.windows;
+    import core.sys.windows.shlobj;
 
-	pragma(lib, "Ole32");
+    pragma(lib, "Ole32");
 }
 
 version(Windows) private struct ItemIdList
 {
-	@disable this(this);
-	this(LPITEMIDLIST pidl) {
-		this.pidl = pidl;
-	}
-	alias pidl this;
-	LPITEMIDLIST pidl;
-	~this() {
-		if (pidl)
-			CoTaskMemFree(pidl);
-	}
+    @disable this(this);
+    this(LPITEMIDLIST pidl) {
+        this.pidl = pidl;
+    }
+    alias pidl this;
+    LPITEMIDLIST pidl;
+    ~this() {
+        if (pidl)
+            CoTaskMemFree(pidl);
+    }
 }
 
 struct TrashcanItem
 {
-	version(Windows) private @trusted this(string restorePath, bool isDir, LPITEMIDLIST pidl) {
-		_restorePath = restorePath;
-		_isDir = isDir;
-		this.pidl = refCounted(ItemIdList(pidl)); 
-	}
-	///
-	@safe @property @nogc nothrow const pure string restorePath() {
-		return _restorePath;
-	}
-	///
-	@safe @property @nogc nothrow const pure  bool isDir() {
-		return _isDir;
-	}
-	version(D_Ddoc) {
-		///
-		alias void* LPITEMIDLIST;
-		@system @property @nogc nothrow LPITEMIDLIST itemIdList() {return null;}
-	} else version(Windows) {
-		@system @property @nogc nothrow LPITEMIDLIST itemIdList() {
-			assert(pidl.refCountedStore.isInitialized);
-			return pidl;
-		}
-	}
+    version(Windows) private @trusted this(string restorePath, bool isDir, LPITEMIDLIST pidl) {
+        _restorePath = restorePath;
+        _isDir = isDir;
+        this.pidl = refCounted(ItemIdList(pidl));
+    }
+    ///
+    @safe @property @nogc nothrow const pure string restorePath() {
+        return _restorePath;
+    }
+    ///
+    @safe @property @nogc nothrow const pure  bool isDir() {
+        return _isDir;
+    }
+    version(D_Ddoc) {
+        ///
+        alias void* LPITEMIDLIST;
+        @system @property @nogc nothrow LPITEMIDLIST itemIdList() {return null;}
+    } else version(Windows) {
+        @system @property @nogc nothrow LPITEMIDLIST itemIdList() {
+            assert(pidl.refCountedStore.isInitialized);
+            return pidl;
+        }
+    }
 private:
-	string _restorePath;
-	bool _isDir;
-	version(Windows) RefCounted!(ItemIdList, RefCountedAutoInitialize.no) pidl;
+    string _restorePath;
+    bool _isDir;
+    version(Windows) RefCounted!(ItemIdList, RefCountedAutoInitialize.no) pidl;
 }
 
 version(Windows) private
 {
-	static @trusted string StrRetToString(ref STRRET strRet)
-	{
-		switch (strRet.uType)
-		{
-		case STRRET_CSTR:
-			return fromStringz(strRet.cStr.ptr).idup;
-		case STRRET_OFFSET:
-			return string.init;
-		case STRRET_WSTR:
-			char[MAX_PATH] szTemp;
-			auto len = WideCharToMultiByte (CP_ACP, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
-			scope(exit) CoTaskMemFree(strRet.pOleStr);
-			if (len)
-				return szTemp[0..len-1].idup;
-			else
-				return string.init;
-		default:
-			return string.init;
-		}
-	}
+    static @trusted string StrRetToString(ref STRRET strRet)
+    {
+        switch (strRet.uType)
+        {
+        case STRRET_CSTR:
+            return fromStringz(strRet.cStr.ptr).idup;
+        case STRRET_OFFSET:
+            return string.init;
+        case STRRET_WSTR:
+            char[MAX_PATH] szTemp;
+            auto len = WideCharToMultiByte (CP_ACP, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
+            scope(exit) CoTaskMemFree(strRet.pOleStr);
+            if (len)
+                return szTemp[0..len-1].idup;
+            else
+                return string.init;
+        default:
+            return string.init;
+        }
+    }
 
-	@safe static void henforce(HRESULT hres, lazy string msg = null, string file = __FILE__, size_t line = __LINE__)
-	{
-		if (hres != S_OK)
-			throw new WindowsException(hres, msg, file, line);
-	}
+    @safe static void henforce(HRESULT hres, lazy string msg = null, string file = __FILE__, size_t line = __LINE__)
+    {
+        if (hres != S_OK)
+            throw new WindowsException(hres, msg, file, line);
+    }
 
-	@trusted static getDisplayNameOf(IShellFolder folder, LPITEMIDLIST pidl)
-	{
-		assert(folder);
-		assert(pidl);
-		STRRET strRet;
-		henforce(folder.GetDisplayNameOf (pidl, SHGNO.SHGDN_NORMAL, &strRet), "Failed to get a display name");
-		return StrRetToString(strRet);
-	}
+    @trusted static getDisplayNameOf(IShellFolder folder, LPITEMIDLIST pidl)
+    {
+        assert(folder);
+        assert(pidl);
+        STRRET strRet;
+        henforce(folder.GetDisplayNameOf (pidl, SHGNO.SHGDN_NORMAL, &strRet), "Failed to get a display name");
+        return StrRetToString(strRet);
+    }
 
-	@trusted static void RunVerb(string verb)(IShellFolder folder, LPITEMIDLIST pidl)
-	{
-		enforce(pidl !is null, "Empty trashcan item, can't run an operation");
-		IContextMenu contextMenu;
-		henforce(folder.GetUIObjectOf(null, 1, cast(LPCITEMIDLIST*)(&pidl), &IID_IContextMenu, null, cast(LPVOID *)&contextMenu), "Failed to get context menu ui object");
-		assert(pidl);
-		assert(contextMenu);
-		scope(exit) contextMenu.Release();
-		CMINVOKECOMMANDINFO ci;
-		ci.fMask = CMIC_MASK_FLAG_NO_UI;
-		ci.cbSize = CMINVOKECOMMANDINFO.sizeof;
-		ci.lpVerb  = verb;
-		henforce(contextMenu.InvokeCommand(&ci), "Failed to undelete item");
-		
-		/* HMENU hMenu = CreatePopupMenu();
-		scope(exit) DestroyMenu(hMenu);
-		(contextMenu.QueryContextMenu(hMenu, 0, 0, 0x7FFF, CMF_NORMAL));
-		int count = GetMenuItemCount(hMenu);
-		for (int i = 0; i < count; i++)
-		{
-			int id = GetMenuItemID(hMenu, i);
-			if (id < 0)
-				continue;
+    @trusted static void RunVerb(string verb)(IShellFolder folder, LPITEMIDLIST pidl)
+    {
+        enforce(pidl !is null, "Empty trashcan item, can't run an operation");
+        IContextMenu contextMenu;
+        henforce(folder.GetUIObjectOf(null, 1, cast(LPCITEMIDLIST*)(&pidl), &IID_IContextMenu, null, cast(LPVOID *)&contextMenu), "Failed to get context menu ui object");
+        assert(pidl);
+        assert(contextMenu);
+        scope(exit) contextMenu.Release();
+        CMINVOKECOMMANDINFO ci;
+        ci.fMask = CMIC_MASK_FLAG_NO_UI;
+        ci.cbSize = CMINVOKECOMMANDINFO.sizeof;
+        ci.lpVerb  = verb;
+        henforce(contextMenu.InvokeCommand(&ci), "Failed to undelete item");
 
-			char[256] buf;
-			HRESULT hres = contextMenu.GetCommandString(id, GCS_VERBW, null, buf.ptr, buf.length);
-			if (hres == S_OK) {
-				wchar* wbuf = cast(wchar*)buf.ptr;
-				writeln(wbuf[0..wcslen(wbuf)]);
-			}
-		} */
-	}
+        /* HMENU hMenu = CreatePopupMenu();
+        scope(exit) DestroyMenu(hMenu);
+        (contextMenu.QueryContextMenu(hMenu, 0, 0, 0x7FFF, CMF_NORMAL));
+        int count = GetMenuItemCount(hMenu);
+        for (int i = 0; i < count; i++)
+        {
+            int id = GetMenuItemID(hMenu, i);
+            if (id < 0)
+                continue;
+
+            char[256] buf;
+            HRESULT hres = contextMenu.GetCommandString(id, GCS_VERBW, null, buf.ptr, buf.length);
+            if (hres == S_OK) {
+                wchar* wbuf = cast(wchar*)buf.ptr;
+                writeln(wbuf[0..wcslen(wbuf)]);
+            }
+        } */
+    }
 }
 
 ///
 interface ITrashcan
 {
-	///
-	@trusted InputRange!TrashcanItem byItem();
-	///
-	@safe void restore(ref scope TrashcanItem item);
-	///
-	@safe void erase(ref scope TrashcanItem item);
-	///
-	@safe string displayName();
+    ///
+    @trusted InputRange!TrashcanItem byItem();
+    ///
+    @safe void restore(ref scope TrashcanItem item);
+    ///
+    @safe void erase(ref scope TrashcanItem item);
+    ///
+    @safe string displayName();
 }
 
 version(Windows) final class Trashcan : ITrashcan
 {
-	@trusted this() {
-		OleInitialize(null);
-		IShellFolder desktop;
-		LPITEMIDLIST pidlRecycleBin;
-		
-		henforce(SHGetDesktopFolder(&desktop), "Failed to get desktop shell folder");
-		assert(desktop);
-		scope(exit) desktop.Release();
-		henforce(SHGetSpecialFolderLocation(null, CSIDL_BITBUCKET, &pidlRecycleBin), "Failed to get recycle bin location");
-		assert(pidlRecycleBin);
-		scope(exit) ILFree(pidlRecycleBin);
-		
-		henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder, cast(LPVOID *)&recycleBin), "Failed to get recycle bin shell folder");
-		_displayName = getDisplayNameOf(desktop, pidlRecycleBin);
-		assert(recycleBin);
-	}
-	
-	@trusted ~this() {
-		assert(recycleBin);
-		recycleBin.Release();
-		OleUninitialize();
-	}
-	
-	private static struct ByItem
-	{
-		this(IShellFolder folder) {
-			this.folder = folder;
-			folder.AddRef();
-			with(SHCONTF) henforce(folder.EnumObjects(null, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS | SHCONTF_INCLUDEHIDDEN, &enumFiles), "Failed to enumerate objects in recycle bin");
-			popFront();
-		}
-		this(this) {
-			if (enumFiles)
-				enumFiles.AddRef();
-			if (folder)
-				folder.AddRef();
-		}
-		~this() {
-			if (enumFiles)
-				enumFiles.Release();
-			if (folder)
-				folder.Release();
-		}
-		TrashcanItem front() {
-			return current;
-		}
-		TrashcanItem moveFront() {
-			import std.algorithm.mutation : move;
-			return move(current);
-		}
-		void popFront() {
-			LPITEMIDLIST pidl;
-			if (enumFiles.Next(1, &pidl, null) == S_FALSE) {
-				atTheEnd = true;
-			} else {
-				assert(pidl);
-				ULONG attributes = SFGAOF.SFGAO_FOLDER;
-				folder.GetAttributesOf(1,cast(LPCITEMIDLIST *)&pidl,&attributes);
-				current = TrashcanItem(getDisplayNameOf(folder, pidl), !!(attributes & SFGAOF.SFGAO_FOLDER), pidl);	
-			}
-		}
-		bool empty() {
-			return atTheEnd;
-		}
-	private:
-		IShellFolder folder;
-		IEnumIDList enumFiles;
-		TrashcanItem current;
-		bool atTheEnd;
-	}
-	
-	@trusted InputRange!TrashcanItem byItem() {
-		return inputRangeObject(ByItem(recycleBin));
-	}
-	
-	@safe void restore(ref scope TrashcanItem item) {
-		RunVerb!"undelete"(recycleBin, item.pidl);
-	}
-	@safe void erase(ref scope TrashcanItem item) {
-		RunVerb!"delete"(recycleBin, item.pidl);
-	}
-	@safe string displayName() {
-		return _displayName;
-	}
+    @trusted this() {
+        OleInitialize(null);
+        IShellFolder desktop;
+        LPITEMIDLIST pidlRecycleBin;
+
+        henforce(SHGetDesktopFolder(&desktop), "Failed to get desktop shell folder");
+        assert(desktop);
+        scope(exit) desktop.Release();
+        henforce(SHGetSpecialFolderLocation(null, CSIDL_BITBUCKET, &pidlRecycleBin), "Failed to get recycle bin location");
+        assert(pidlRecycleBin);
+        scope(exit) ILFree(pidlRecycleBin);
+
+        henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder, cast(LPVOID *)&recycleBin), "Failed to get recycle bin shell folder");
+        _displayName = getDisplayNameOf(desktop, pidlRecycleBin);
+        assert(recycleBin);
+    }
+
+    @trusted ~this() {
+        assert(recycleBin);
+        recycleBin.Release();
+        OleUninitialize();
+    }
+
+    private static struct ByItem
+    {
+        this(IShellFolder folder) {
+            this.folder = folder;
+            folder.AddRef();
+            with(SHCONTF) henforce(folder.EnumObjects(null, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS | SHCONTF_INCLUDEHIDDEN, &enumFiles), "Failed to enumerate objects in recycle bin");
+            popFront();
+        }
+        this(this) {
+            if (enumFiles)
+                enumFiles.AddRef();
+            if (folder)
+                folder.AddRef();
+        }
+        ~this() {
+            if (enumFiles)
+                enumFiles.Release();
+            if (folder)
+                folder.Release();
+        }
+        TrashcanItem front() {
+            return current;
+        }
+        TrashcanItem moveFront() {
+            import std.algorithm.mutation : move;
+            return move(current);
+        }
+        void popFront() {
+            LPITEMIDLIST pidl;
+            if (enumFiles.Next(1, &pidl, null) == S_FALSE) {
+                atTheEnd = true;
+            } else {
+                assert(pidl);
+                ULONG attributes = SFGAOF.SFGAO_FOLDER;
+                folder.GetAttributesOf(1,cast(LPCITEMIDLIST *)&pidl,&attributes);
+                current = TrashcanItem(getDisplayNameOf(folder, pidl), !!(attributes & SFGAOF.SFGAO_FOLDER), pidl);
+            }
+        }
+        bool empty() {
+            return atTheEnd;
+        }
+    private:
+        IShellFolder folder;
+        IEnumIDList enumFiles;
+        TrashcanItem current;
+        bool atTheEnd;
+    }
+
+    @trusted InputRange!TrashcanItem byItem() {
+        return inputRangeObject(ByItem(recycleBin));
+    }
+
+    @safe void restore(ref scope TrashcanItem item) {
+        RunVerb!"undelete"(recycleBin, item.pidl);
+    }
+    @safe void erase(ref scope TrashcanItem item) {
+        RunVerb!"delete"(recycleBin, item.pidl);
+    }
+    @safe string displayName() {
+        return _displayName;
+    }
 private:
-	string _displayName;
-	IShellFolder recycleBin;
+    string _displayName;
+    IShellFolder recycleBin;
 }
