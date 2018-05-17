@@ -370,6 +370,7 @@ version(Windows) private struct ItemIdList
     }
 }
 
+/// Item (file or folder) stored in the trashcan.
 struct TrashcanItem
 {
     version(Windows) private @trusted this(string restorePath, bool isDir, LPITEMIDLIST pidl) {
@@ -377,17 +378,21 @@ struct TrashcanItem
         _isDir = isDir;
         this.pidl = refCounted(ItemIdList(pidl));
     }
-    ///
+    /// Original location of item (before it was moved to trashcan).
     @safe @property @nogc nothrow const pure string restorePath() {
         return _restorePath;
     }
-    ///
+    /// Whether the item is directory.
     @safe @property @nogc nothrow const pure  bool isDir() {
         return _isDir;
     }
     version(D_Ddoc) {
-        ///
         alias void* LPITEMIDLIST;
+        /**
+         * Windows-specific function to get LPITEMIDLIST associated with item.
+         * Note:
+         *  The returned object must not outlive this TrashcanItem (or its copies). If you want to keep this object around use $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb776433(v=vs.85).aspx, ILClone). Don't forget to call ILFree or CoTaskMemFree, when it's no longer needed.
+         */
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {return null;}
     } else version(Windows) {
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {
@@ -473,20 +478,39 @@ version(Windows) private
     }
 }
 
-///
+/// Interface to trashcan.
 interface ITrashcan
 {
-    ///
+    /// List items stored in trashcan.
     @trusted InputRange!TrashcanItem byItem();
-    ///
+    /// Restore item to its original location.
     @safe void restore(ref scope TrashcanItem item);
-    ///
+    /// Erase item from trashcan.
     @safe void erase(ref scope TrashcanItem item);
-    ///
+    /// The name of trashcan (possibly localized).
     @safe string displayName();
 }
 
-version(Windows) final class Trashcan : ITrashcan
+version(D_Ddoc)
+{
+    /// Implementation of $(D ITrashcan). This class may have additional platform-dependent functions and different constructors.
+    final class Trashcan
+    {
+        ///
+        this() {}
+        @trusted InputRange!TrashcanItem byItem() {return null;}
+        ///
+        @safe void restore(ref scope TrashcanItem item) {}
+        /**
+         * Erase item from trashcan.
+         * On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
+         */
+        @safe void erase(ref scope TrashcanItem item) {}
+        ///
+        @safe string displayName() {return string.init;}
+    }
+}
+else version(Windows) final class Trashcan : ITrashcan
 {
     @trusted this() {
         OleInitialize(null);
