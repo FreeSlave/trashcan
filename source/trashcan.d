@@ -16,6 +16,13 @@ import std.range : InputRange, inputRangeObject;
 
 import isfreedesktop;
 
+static if (isFreedesktop) {
+    import std.uri : encode, decode;
+    import volumeinfo;
+    import inilike.file;
+    import xdgpaths : xdgDataHome;
+}
+
 /**
  * Flags to rule the trashing behavior.
  *
@@ -99,29 +106,8 @@ private:
     in {
         assert(path.isAbsolute);
     }
-    out(result) {
-        if (result.length) {
-            assert(result.isAbsolute);
-        }
-    }
     body {
-        auto current = path;
-        stat_t currentStat;
-        if (stat(current.toStringz, &currentStat) != 0) {
-            return null;
-        }
-        stat_t parentStat;
-        while(current != "/") {
-            string parent = current.dirName;
-            if (lstat(parent.toStringz, &parentStat) != 0) {
-                return null;
-            }
-            if (currentStat.st_dev != parentStat.st_dev) {
-                return current;
-            }
-            current = parent;
-        }
-        return current;
+        return volumePath(path);
     }
 
     void checkDiskTrashMode(mode_t mode, const bool checkStickyBit = true)
@@ -154,7 +140,8 @@ private:
     }
 
     string userTrashSubdir(string trashDir, uid_t uid) {
-        return buildPath(trashDir, format("%s", uid));
+        import std.conv : to;
+        return buildPath(trashDir, uid.to!string);
     }
 
     unittest
@@ -257,8 +244,6 @@ private:
         }
     } else {
         static if (isFreedesktop) {
-            import xdgpaths;
-
             string dataPath = xdgDataHome(null, true);
             if (!dataPath.length) {
                 throw new Exception("Could not access data folder");
@@ -311,7 +296,6 @@ private:
 
             import std.datetime;
             import std.conv : octal;
-            import std.uri;
             import core.stdc.errno;
 
             auto currentTime = Clock.currTime;
@@ -378,6 +362,16 @@ struct TrashcanItem
         _isDir = isDir;
         this.pidl = refCounted(ItemIdList(pidl));
     }
+    static if (isFreedesktop) {
+        private @trusted this(string restorePath, bool isDir, string trashInfoPath, string trashedPath) {
+            assert(trashInfoPath.length != 0);
+            assert(trashedPath.length != 0);
+            _restorePath = restorePath;
+            _isDir = isDir;
+            _trashInfoPath = trashInfoPath;
+            _trashedPath = trashedPath;
+        }
+    }
     /// Original location of item (before it was moved to trashcan).
     @safe @property @nogc nothrow const pure string restorePath() {
         return _restorePath;
@@ -394,16 +388,35 @@ struct TrashcanItem
          *  The returned object must not outlive this TrashcanItem (or its copies). If you want to keep this object around use $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb776433(v=vs.85).aspx, ILClone). Don't forget to call ILFree or CoTaskMemFree, when it's no longer needed.
          */
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {return null;}
+        /**
+         * Freedesktop-specific function to get .trashinfo file path.
+         */
+        @property @nogc nothrow string trashInfoPath() const {return string.init;}
+        /**
+         * Freedesktop-specific function to get the path where the trashed file or directory is located.
+         */
+        @property @nogc nothrow string trashedPath() const {return string.init;}
     } else version(Windows) {
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {
             assert(pidl.refCountedStore.isInitialized);
             return pidl;
+        }
+    } else static if (isFreedesktop) {
+        @safe @property @nogc nothrow string trashInfoPath() const {
+            return _trashInfoPath;
+        }
+        @safe @property @nogc nothrow string trashedPath() const {
+            return _trashedPath;
         }
     }
 private:
     string _restorePath;
     bool _isDir;
     version(Windows) RefCounted!(ItemIdList, RefCountedAutoInitialize.no) pidl;
+    static if (isFreedesktop) {
+        string _trashInfoPath;
+        string _trashedPath;
+    }
 }
 
 version(Windows) private
@@ -456,25 +469,7 @@ version(Windows) private
         ci.fMask = CMIC_MASK_FLAG_NO_UI;
         ci.cbSize = CMINVOKECOMMANDINFO.sizeof;
         ci.lpVerb  = verb;
-        henforce(contextMenu.InvokeCommand(&ci), "Failed to undelete item");
-
-        /* HMENU hMenu = CreatePopupMenu();
-        scope(exit) DestroyMenu(hMenu);
-        (contextMenu.QueryContextMenu(hMenu, 0, 0, 0x7FFF, CMF_NORMAL));
-        int count = GetMenuItemCount(hMenu);
-        for (int i = 0; i < count; i++)
-        {
-            int id = GetMenuItemID(hMenu, i);
-            if (id < 0)
-                continue;
-
-            char[256] buf;
-            HRESULT hres = contextMenu.GetCommandString(id, GCS_VERBW, null, buf.ptr, buf.length);
-            if (hres == S_OK) {
-                wchar* wbuf = cast(wchar*)buf.ptr;
-                writeln(wbuf[0..wcslen(wbuf)]);
-            }
-        } */
+        henforce(contextMenu.InvokeCommand(&ci), "Failed to " ~ verb ~ " item");
     }
 }
 
@@ -499,14 +494,16 @@ version(D_Ddoc)
         ///
         this() {}
         @trusted InputRange!TrashcanItem byItem() {return null;}
-        ///
+        /**
+         * Restore item to its original location.
+         */
         @safe void restore(ref scope TrashcanItem item) {}
         /**
          * Erase item from trashcan.
          * On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
          */
         @safe void erase(ref scope TrashcanItem item) {}
-        ///
+        /// The name of trashcan (possibly localized).
         @safe string displayName() {return string.init;}
     }
 }
@@ -599,4 +596,112 @@ else version(Windows) final class Trashcan : ITrashcan
 private:
     string _displayName;
     IShellFolder recycleBin;
+} else static if (isFreedesktop)
+{
+    final class Trashcan : ITrashcan
+    {
+        @safe static bool isDirNothrow(string path) nothrow {
+            bool isDirectory;
+            if (collectException(path.isDir, isDirectory) is null)
+                return isDirectory;
+            return false;
+        }
+
+        @safe this() {
+        }
+
+        import std.typecons : Tuple;
+
+        @trusted InputRange!TrashcanItem byItem() {
+            import std.algorithm.iteration : cache, map, joiner, filter;
+            alias Tuple!(string, "base", string, "info", string, "files", string, "root") TrashLocation;
+            return inputRangeObject(standardTrashBasePaths().map!(trashDir => TrashLocation(trashDir.base, buildPath(trashDir.base, "info"), buildPath(trashDir.base, "files"), trashDir.root)).filter!(t => isDirNothrow(t.info) && isDirNothrow(t.files)).map!(delegate(TrashLocation trash) {
+                InputRange!TrashcanItem toReturn;
+                try {
+                    toReturn = inputRangeObject(dirEntries(trash.info, SpanMode.shallow, false).filter!(entry => entry.extension == ".trashinfo").map!(delegate(DirEntry entry) {
+                        string trashedFile = buildPath(trash.files, entry.baseName.stripExtension);
+                        try {
+                            if (exists(trashedFile)) {
+                                import inilike.read;
+
+                                string path;
+
+                                auto onLeadingComment = delegate void(string line) {};
+                                auto onGroup = delegate ActionOnGroup(string groupName) {
+                                    if (groupName == "Trash Info")
+                                        return ActionOnGroup.stopAfter;
+                                    return ActionOnGroup.skip;
+                                };
+                                auto onKeyValue = delegate void(string key, string value, string groupName) {
+                                    if (groupName == "Trash Info" && key == "Path")
+                                        path = value;
+                                };
+                                auto onCommentInGroup = delegate void(string line, string groupName) {};
+                                readIniLike(iniLikeFileReader(entry.name), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
+
+                                if (path.length) {
+                                    path = path.decode();
+                                    string restorePath;
+                                    if (path.isAbsolute)
+                                        restorePath = path;
+                                    else
+                                        restorePath = buildPath(trash.root, path);
+                                    return TrashcanItem(restorePath, trashedFile.isDir, entry.name, trashedFile);
+                                }
+                            }
+                        } catch(Exception e) {}
+                        return TrashcanItem.init;
+                    }).cache.filter!(item => item.restorePath.length));
+                } catch(Exception e) {
+                    toReturn = inputRangeObject(TrashcanItem[].init);
+                }
+                return toReturn;
+            }).cache.joiner);
+        }
+
+        @safe void restore(ref scope TrashcanItem item) {
+            rename(item.trashedPath, item.restorePath);
+            collectException(remove(item.trashInfoPath));
+        }
+        @safe void erase(ref scope TrashcanItem item) {
+            remove(item.trashedPath);
+            collectException(remove(item.trashInfoPath));
+        }
+        @safe string displayName() {
+            return "Trash";
+        }
+    private:
+        alias Tuple!(string, "base", string, "root") TrashRoot;
+        @trusted static TrashRoot[] standardTrashBasePaths() {
+            TrashRoot[] trashBasePaths;
+            import core.sys.posix.unistd;
+
+            string homeTrashPath = xdgDataHome("Trash");
+            string homeTrashTopDir;
+            if (homeTrashPath.length && homeTrashPath.isAbsolute && isDirNothrow(homeTrashPath)) {
+                homeTrashTopDir = homeTrashPath.topDir;
+                trashBasePaths ~= TrashRoot(homeTrashPath, homeTrashTopDir);
+            }
+
+            auto userId = getuid();
+            auto volumes = mountedVolumes();
+            foreach(volume; volumes) {
+                if (!volume.isValid)
+                    continue;
+                if (homeTrashTopDir == volume.path)
+                    continue;
+                string diskTrash;
+                string userTrash;
+                if (collectException(checkDiskTrash(volume.path), diskTrash) is null) {
+                    userTrash = userTrashSubdir(diskTrash, userId);
+                    if (isDirNothrow(userTrash))
+                        trashBasePaths ~= TrashRoot(userTrash, volume.path);
+                }
+                userTrash = userTrashDir(volume.path, userId);
+                if (isDirNothrow(userTrash))
+                    trashBasePaths ~= TrashRoot(userTrash, volume.path);
+            }
+            return trashBasePaths;
+        }
+    }
 }

@@ -9,6 +9,8 @@
     "targetName" : "trashcan",
 
     "dependencies": {
-        "xdgpaths" : "~>0.2.5"
+        "xdgpaths" : "~>0.2.5",
+        "volumeinfo" : "~>0.2.0",
+        "inilike" : "~>1.1.0"
     },
 }
