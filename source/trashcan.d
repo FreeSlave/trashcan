@@ -492,7 +492,8 @@ version(D_Ddoc)
     final class Trashcan
     {
         ///
-        this() {}
+        @trusted this() {}
+        /// Lazily list items stored in trashcan.
         @trusted InputRange!TrashcanItem byItem() {return null;}
         /**
          * Restore item to its original location.
@@ -600,7 +601,7 @@ private:
 {
     final class Trashcan : ITrashcan
     {
-        @safe static bool isDirNothrow(string path) nothrow {
+        private @safe static bool isDirNothrow(string path) nothrow {
             bool isDirectory;
             if (collectException(path.isDir, isDirectory) is null)
                 return isDirectory;

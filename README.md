@@ -3,7 +3,9 @@
 [![Build Status](https://travis-ci.org/FreeSlave/trashcan.svg?branch=master)](https://travis-ci.org/FreeSlave/trashcan) [![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/FreeSlave/trashcan?branch=master&svg=true)](https://ci.appveyor.com/project/FreeSlave/trashcan)
 
 Trash can operations implemented in D programming language.
-**moveToTrash** function places a passed file or directory to trash can. **Trashcan** class allows to list trashcan contents, restore or delete items.
+The **moveToTrash** function places a passed file or directory to trash can. The **Trashcan** class allows to list trashcan contents, restore or delete items.
+
+[Online documentation](https://freeslave.github.io/trashcan/trashcan.html)
 
 ## Platform support and implementation details
 
@@ -23,7 +25,7 @@ Run to put file or directory to trash can:
 
     dub examples/put.d path/to/file
 
-### [Manage items in trashcan](examples/manage.d)
+### [Manage items in trash can](examples/manage.d)
 
 Interactively delete items from trashcan or restore them to their original location.
 
