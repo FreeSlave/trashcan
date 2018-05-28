@@ -88,3 +88,4 @@ test_script:
  - dub test --arch=%Darch% --compiler=%DC%
  - dub build --arch=%Darch% --compiler=%DC%
  - dub --single examples/put.d --arch=%Darch% --compiler=%DC% -- README.md
+ - dub --single examples/manage.d --arch=%Darch% --compiler=%DC% -- --list

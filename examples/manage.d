@@ -6,7 +6,8 @@ import std.path;
 import std.stdio;
 import std.array;
 import std.exception;
-import std.datetime.stopwatch;
+import std.algorithm.sorting : sort;
+import std.getopt;
 import trashcan;
 
 void printHelp()
@@ -14,13 +15,18 @@ void printHelp()
     writeln("Possible commands: restore <index>; erase <index>; exit; help;");
 }
 
-void main()
+void main(string[] args)
 {
+    bool onlyList;
+    getopt(args, "list", "List items in trash can and exit",  &onlyList);
+
     auto trashCan = new Trashcan();
-    auto items = trashCan.byItem.array;
+    auto items = trashCan.byItem.array.sort!((a,b) => a.restorePath.baseName < b.restorePath.baseName).array;
     foreach(i, item; items) {
         writefln("%s: %s (%s)", i, item.restorePath, item.isDir ? "directory" : "file");
     }
+    if (onlyList)
+        return;
     string line;
     printHelp();
     write("$ ");
