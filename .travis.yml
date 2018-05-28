@@ -15,4 +15,4 @@ script:
     - mkdir testdir
     - echo "Hello world!" > "testdir/hello.txt"
     - dub --single examples/put.d --compiler=${DC} -- "testdir"
-    - dub --single examples/manage.d --compiler=${DC} -- --list
+    - if [ "$TRAVIS_OS_NAME" = linux ]; then dub --single examples/manage.d --compiler=${DC} -- --list ; fi
