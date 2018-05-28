@@ -17,6 +17,11 @@ On OSX FSMoveObjectToTrashSync is used to move files to trash. Listing, deleting
 
 Other platforms are not supported.
 
+## Currently missing features
+
+* Access to Deletion date
+* Notifying changes in trach can contents (or at least providing the data required to implement this feature for the library user).
+
 ## Examples
 
 ### [Put to trash can](examples/put.d)
