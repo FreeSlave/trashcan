@@ -661,6 +661,7 @@ private:
         }
 
         @safe void restore(ref scope TrashcanItem item) {
+            mkdirRecurse(item.restorePath.dirName);
             rename(item.trashedPath, item.restorePath);
             collectException(remove(item.trashInfoPath));
         }
