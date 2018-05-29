@@ -349,8 +349,10 @@ version(Windows) private struct ItemIdList
     alias pidl this;
     LPITEMIDLIST pidl;
     ~this() {
-        if (pidl)
+        if (pidl) {
             CoTaskMemFree(pidl);
+            pidl = null;
+        }
     }
 }
 
@@ -479,16 +481,19 @@ interface ITrashcan
     /// List items stored in trashcan.
     @trusted InputRange!TrashcanItem byItem();
     /// Restore item to its original location.
-    @safe void restore(ref scope TrashcanItem item);
+    @safe void restore(TrashcanItem item);
     /// Erase item from trashcan.
-    @safe void erase(ref scope TrashcanItem item);
+    @safe void erase(TrashcanItem item);
     /// The name of trashcan (possibly localized).
     @safe string displayName();
 }
 
 version(D_Ddoc)
 {
-    /// Implementation of $(D ITrashcan). This class may have additional platform-dependent functions and different constructors.
+    /**
+     * Implementation of $(D ITrashcan). This class may have additional platform-dependent functions and different constructors.
+     * This class is currently available only for $(BLUE Windows) and $(BLUE Freedesktop) (GNU/Linux, FreeBSD, etc.) platforms.
+     */
     final class Trashcan
     {
         ///
@@ -497,13 +502,19 @@ version(D_Ddoc)
         @trusted InputRange!TrashcanItem byItem() {return null;}
         /**
          * Restore item to its original location.
+         * Throws:
+         *  $(B WindowsException) on Windows when could not invoke the operation.
+         *  $(B FileException) on Posix when could not move the item to its original location or could not recreate original location directory.
          */
-        @safe void restore(ref scope TrashcanItem item) {}
+        @safe void restore(TrashcanItem item) {}
         /**
          * Erase item from trashcan.
          * On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
+         * Throws:
+         *  $(B WindowsException) on Windows when could not invoke the operation.
+         *  $(B FileException) on Posix when could not delete the item.
          */
-        @safe void erase(ref scope TrashcanItem item) {}
+        @safe void erase(TrashcanItem item) {}
         /// The name of trashcan (possibly localized).
         @safe string displayName() {return string.init;}
     }
@@ -585,10 +596,10 @@ else version(Windows) final class Trashcan : ITrashcan
         return inputRangeObject(ByItem(recycleBin));
     }
 
-    @safe void restore(ref scope TrashcanItem item) {
+    @safe void restore(TrashcanItem item) {
         RunVerb!"undelete"(recycleBin, item.pidl);
     }
-    @safe void erase(ref scope TrashcanItem item) {
+    @safe void erase(TrashcanItem item) {
         RunVerb!"delete"(recycleBin, item.pidl);
     }
     @safe string displayName() {
@@ -660,12 +671,12 @@ private:
             }).cache.joiner);
         }
 
-        @safe void restore(ref scope TrashcanItem item) {
+        @safe void restore(TrashcanItem item) {
             mkdirRecurse(item.restorePath.dirName);
             rename(item.trashedPath, item.restorePath);
             collectException(remove(item.trashInfoPath));
         }
-        @safe void erase(ref scope TrashcanItem item) {
+        @safe void erase(TrashcanItem item) {
             remove(item.trashedPath);
             collectException(remove(item.trashInfoPath));
         }
