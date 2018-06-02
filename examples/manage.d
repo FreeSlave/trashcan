@@ -66,6 +66,9 @@ void main(string[] args)
                     case "exit":
                     case "quit":
                         return;
+                    case "name":
+                        writeln(trashCan.displayName);
+                        break;
                     case "help":
                     case "?":
                         printHelp();

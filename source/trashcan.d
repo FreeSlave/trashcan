@@ -20,7 +20,7 @@ static if (isFreedesktop) {
     import std.uri : encode, decode;
     import volumeinfo;
     import inilike.file;
-    import xdgpaths : xdgDataHome;
+    import xdgpaths : xdgDataHome, xdgAllDataDirs;
 }
 
 /**
@@ -495,7 +495,7 @@ interface ITrashcan
         erase(item);
     }
     /// The name of trashcan (possibly localized).
-    @property @safe string displayName();
+    @property @safe string displayName() nothrow;
 }
 
 version(D_Ddoc)
@@ -529,11 +529,11 @@ version(D_Ddoc)
          */
         @safe void erase(ref scope TrashcanItem item) {}
         /**
-         * The name of trashcan (possibly localized). Currently implemented only for Windows, and returns empty string on other platforms.
+         * The name of trashcan (possibly localized). Currently implemented only for Windows and KDE, and returns empty string on other platforms.
          * Returns:
          *  Name of trashcan as defined by system for the current user. Empty string if the name is unknown.
          */
-        @property @safe string displayName() {return string.init;}
+        @property @safe string displayName() nothrow {return string.init;}
 
         alias void* IShellFolder;
         /**
@@ -628,7 +628,7 @@ else version(Windows) final class Trashcan : ITrashcan
     @safe void erase(ref scope TrashcanItem item) {
         RunVerb!"delete"(_recycleBin, item.pidl);
     }
-    @property @safe string displayName() {
+    @property @safe string displayName() nothrow {
         return _displayName;
     }
     @property @system @nogc IShellFolder recycleBin() nothrow {
@@ -648,8 +648,7 @@ private:
             return false;
         }
 
-        @safe this() {
-        }
+        @safe this() {}
 
         import std.typecons : Tuple;
 
@@ -709,12 +708,48 @@ private:
             remove(item.trashedPath);
             collectException(remove(item.trashInfoPath));
         }
-        @property @safe string displayName() {
+        @property @safe string displayName() nothrow {
+            if (!_triedToRetrieveName) {
+                _triedToRetrieveName = true;
+
+                static @safe string currentLocale() nothrow
+                {
+                    import std.process : environment;
+                    try {
+                        return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+                    } catch(Exception e) {
+                        return null;
+                    }
+                }
+
+                static @safe string readTrashName(const(string)[] desktopFiles, string locale) nothrow {
+                    import std.typecons : No;
+                    foreach(path; desktopFiles) {
+                        if (!path.exists)
+                            continue;
+                        try {
+                            auto trashDesktop = new IniLikeFile(path, IniLikeFile.ReadOptions(IniLikeFile.DuplicateGroupPolicy.skip, IniLikeFile.DuplicateKeyPolicy.skip, No.preserveComments));
+                            auto desktopEntry = trashDesktop.group("Desktop Entry");
+                            if (desktopEntry) {
+                                string name = desktopEntry.unescapedValue("Name", locale);
+                                if (name.length)
+                                    return name;
+                            }
+                        } catch(Exception e) {}
+                    }
+                    return string.init;
+                }
+
+                const locale = currentLocale();
+                _displayName = readTrashName(xdgAllDataDirs("kio_desktop/directory.trash"), locale);
+                if (!_displayName.length) {
+                    _displayName = readTrashName(xdgAllDataDirs("kde4/apps/kio_desktop/directory.trash"), locale);
+                }
+            }
             /+
-            On KDE it can be read from /usr/share/kio_desktop/directory.trash or /usr/share/kde4/apps/kio_desktop/directory.trash
             On GNOME it can be read from nautilus translation file (.mo).
             +/
-            return string.init;
+            return _displayName;
         }
     private:
         alias Tuple!(string, "base", string, "root") TrashRoot;
@@ -749,5 +784,7 @@ private:
             }
             return trashBasePaths;
         }
+        string _displayName;
+        bool _triedToRetrieveName;
     }
 }
