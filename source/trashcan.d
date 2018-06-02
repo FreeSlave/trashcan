@@ -375,17 +375,18 @@ struct TrashcanItem
         }
     }
     /// Original location of item (before it was moved to trashcan).
-    @safe @property @nogc nothrow const pure string restorePath() {
+    @safe @property @nogc nothrow pure string restorePath() const {
         return _restorePath;
     }
     /// Whether the item is directory.
-    @safe @property @nogc nothrow const pure  bool isDir() {
+    @safe @property @nogc nothrow pure  bool isDir() const {
         return _isDir;
     }
     version(D_Ddoc) {
         alias void* LPITEMIDLIST;
         /**
          * Windows-specific function to get LPITEMIDLIST associated with item.
+         *
          * Note:
          *  The returned object must not outlive this TrashcanItem (or its copies). If you want to keep this object around use $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb776433(v=vs.85).aspx, ILClone). Don't forget to call ILFree or CoTaskMemFree, when it's no longer needed.
          */
@@ -400,8 +401,9 @@ struct TrashcanItem
         @property @nogc nothrow string trashedPath() const {return string.init;}
     } else version(Windows) {
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {
-            assert(pidl.refCountedStore.isInitialized);
-            return pidl;
+            if (pidl.refCountedStore.isInitialized)
+                return pidl;
+            return null;
         }
     } else static if (isFreedesktop) {
         @safe @property @nogc nothrow string trashInfoPath() const {
@@ -481,11 +483,19 @@ interface ITrashcan
     /// List items stored in trashcan.
     @trusted InputRange!TrashcanItem byItem();
     /// Restore item to its original location.
-    @safe void restore(TrashcanItem item);
+    @safe void restore(ref scope TrashcanItem item);
+    /// Ditto
+    @trusted final void restore(TrashcanItem item) {
+        restore(item);
+    }
     /// Erase item from trashcan.
-    @safe void erase(TrashcanItem item);
+    @safe void erase(ref scope TrashcanItem item);
+    /// Ditto
+    @trusted final erase(TrashcanItem item) {
+        erase(item);
+    }
     /// The name of trashcan (possibly localized).
-    @safe string displayName();
+    @property @safe string displayName();
 }
 
 version(D_Ddoc)
@@ -494,7 +504,7 @@ version(D_Ddoc)
      * Implementation of $(D ITrashcan). This class may have additional platform-dependent functions and different constructors.
      * This class is currently available only for $(BLUE Windows) and $(BLUE Freedesktop) (GNU/Linux, FreeBSD, etc.) platforms.
      */
-    final class Trashcan
+    final class Trashcan : ITrashcan
     {
         ///
         @trusted this() {}
@@ -503,20 +513,36 @@ version(D_Ddoc)
         /**
          * Restore item to its original location.
          * Throws:
-         *  $(B WindowsException) on Windows when could not invoke the operation.
-         *  $(B FileException) on Posix when could not move the item to its original location or could not recreate original location directory.
+         *  $(B WindowsException) on Windows when the operation failed.$(BR)
+         *  $(B FileException) on Posix when could not move the item to its original location or could not recreate original location directory.$(BR)
+         *  $(B Exception) on other errors.
          */
-        @safe void restore(TrashcanItem item) {}
+        @safe void restore(ref scope TrashcanItem item) {}
         /**
          * Erase item from trashcan.
-         * On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
+         * Bugs:
+         *  On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
          * Throws:
-         *  $(B WindowsException) on Windows when could not invoke the operation.
-         *  $(B FileException) on Posix when could not delete the item.
+         *  $(B WindowsException) on Windows when the operation failed.$(BR)
+         *  $(B FileException) on Posix when could not delete the item.$(BR)
+         *  $(B Exception) on other errors.
          */
-        @safe void erase(TrashcanItem item) {}
-        /// The name of trashcan (possibly localized).
-        @safe string displayName() {return string.init;}
+        @safe void erase(ref scope TrashcanItem item) {}
+        /**
+         * The name of trashcan (possibly localized). Currently implemented only for Windows, and returns empty string on other platforms.
+         * Returns:
+         *  Name of trashcan as defined by system for the current user. Empty string if the name is unknown.
+         */
+        @property @safe string displayName() {return string.init;}
+
+        alias void* IShellFolder;
+        /**
+         * Windows-only function to get $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb775075(v=vs.85).aspx, IShellFolder) object associated with recycle bin.
+         *
+         * Note:
+         *  If you want a returned object to outlive $(D Trashcan), you must call AddRef on it (and then Release when it's no longer needed).
+         */
+        @system @property @nogc IShellFolder recycleBin() nothrow {return null;}
     }
 }
 else version(Windows) final class Trashcan : ITrashcan
@@ -533,14 +559,14 @@ else version(Windows) final class Trashcan : ITrashcan
         assert(pidlRecycleBin);
         scope(exit) ILFree(pidlRecycleBin);
 
-        henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder, cast(LPVOID *)&recycleBin), "Failed to get recycle bin shell folder");
-        _displayName = getDisplayNameOf(desktop, pidlRecycleBin);
-        assert(recycleBin);
+        henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder, cast(LPVOID *)&_recycleBin), "Failed to get recycle bin shell folder");
+        assert(_recycleBin);
+        collectException(getDisplayNameOf(desktop, pidlRecycleBin), _displayName);
     }
 
     @trusted ~this() {
-        assert(recycleBin);
-        recycleBin.Release();
+        assert(_recycleBin);
+        _recycleBin.Release();
         OleUninitialize();
     }
 
@@ -593,21 +619,24 @@ else version(Windows) final class Trashcan : ITrashcan
     }
 
     @trusted InputRange!TrashcanItem byItem() {
-        return inputRangeObject(ByItem(recycleBin));
+        return inputRangeObject(ByItem(_recycleBin));
     }
 
-    @safe void restore(TrashcanItem item) {
-        RunVerb!"undelete"(recycleBin, item.pidl);
+    @safe void restore(ref scope TrashcanItem item) {
+        RunVerb!"undelete"(_recycleBin, item.pidl);
     }
-    @safe void erase(TrashcanItem item) {
-        RunVerb!"delete"(recycleBin, item.pidl);
+    @safe void erase(ref scope TrashcanItem item) {
+        RunVerb!"delete"(_recycleBin, item.pidl);
     }
-    @safe string displayName() {
+    @property @safe string displayName() {
         return _displayName;
+    }
+    @property @system @nogc IShellFolder recycleBin() nothrow {
+        return _recycleBin;
     }
 private:
     string _displayName;
-    IShellFolder recycleBin;
+    IShellFolder _recycleBin;
 } else static if (isFreedesktop)
 {
     final class Trashcan : ITrashcan
@@ -671,17 +700,21 @@ private:
             }).cache.joiner);
         }
 
-        @safe void restore(TrashcanItem item) {
+        @safe void restore(ref scope TrashcanItem item) {
             mkdirRecurse(item.restorePath.dirName);
             rename(item.trashedPath, item.restorePath);
             collectException(remove(item.trashInfoPath));
         }
-        @safe void erase(TrashcanItem item) {
+        @safe void erase(ref scope TrashcanItem item) {
             remove(item.trashedPath);
             collectException(remove(item.trashInfoPath));
         }
-        @safe string displayName() {
-            return "Trash";
+        @property @safe string displayName() {
+            /+
+            On KDE it can be read from /usr/share/kio_desktop/directory.trash or /usr/share/kde4/apps/kio_desktop/directory.trash
+            On GNOME it can be read from nautilus translation file (.mo).
+            +/
+            return string.init;
         }
     private:
         alias Tuple!(string, "base", string, "root") TrashRoot;
