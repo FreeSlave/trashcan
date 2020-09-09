@@ -435,7 +435,7 @@ version(Windows) private
             return string.init;
         case STRRET_WSTR:
             char[MAX_PATH] szTemp;
-            auto len = WideCharToMultiByte (CP_ACP, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
+            auto len = WideCharToMultiByte (CP_UTF8, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
             scope(exit) CoTaskMemFree(strRet.pOleStr);
             if (len)
                 return szTemp[0..len-1].idup;
