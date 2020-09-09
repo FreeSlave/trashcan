@@ -12,7 +12,7 @@ import trashcan;
 
 void printHelp()
 {
-    writeln("Possible commands: restore <index>; erase <index>; exit; help;");
+    writeln("Possible commands: restore <index>; erase <index>; exit; help; name;");
 }
 
 void main(string[] args)
@@ -21,10 +21,18 @@ void main(string[] args)
     getopt(args, "list", "List items in trash can and exit",  &onlyList);
 
     auto trashCan = new Trashcan();
-    auto items = trashCan.byItem.array.sort!((a,b) => a.restorePath.baseName < b.restorePath.baseName).array;
-    foreach(i, item; items) {
-        writefln("%s: %s (%s)", i, item.restorePath, item.isDir ? "directory" : "file");
+    TrashcanItem[] items;
+
+    void printItems()
+    {
+        items = trashCan.byItem.array.sort!((a,b) => a.restorePath.baseName < b.restorePath.baseName).array;
+        foreach(i, item; items) {
+            writefln("%s: %s (%s)", i, item.restorePath, item.isDir ? "directory" : "file");
+        }
     }
+
+    printItems();
+
     if (onlyList)
         return;
     string line;
@@ -72,6 +80,9 @@ void main(string[] args)
                     case "help":
                     case "?":
                         printHelp();
+                        break;
+                    case "list":
+                        printItems();
                         break;
                     default:
                         stderr.writefln("Unknown command %s", command);
