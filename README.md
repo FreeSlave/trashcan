@@ -11,7 +11,7 @@ The **moveToTrash** function places a passed file or directory to trash can. The
 
 On Freedesktop environments (e.g. GNU/Linux) the library follows [Trash Can Specification](https://www.freedesktop.org/wiki/Specifications/trash-spec/).
 
-On Windows [SHFileOperation](https://msdn.microsoft.com/en-us/library/windows/desktop/bb762164(v=vs.85).aspx) is used to move files to trash, and [IShellFolder](https://msdn.microsoft.com/en-us/library/windows/desktop/bb775075(v=vs.85).aspx) is used as an interface to recycle bin to list, delete and undelete items.
+On Windows [SHFileOperation](https://docs.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shfileoperationw) is used to move files to trash, and [IShellFolder2](https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellfolder2) is used as an interface to recycle bin to list, delete and undelete items.
 
 On OSX FSMoveObjectToTrashSync is used to move files to trash. Listing, deleting and undeleting items in the trash can are not currently supported on macOS.
 
@@ -19,8 +19,7 @@ Other platforms are not supported.
 
 ## Currently missing features
 
-* Access to Deletion date
-* Notifying changes in trach can contents (or at least providing the data required to implement this feature for the library user).
+* Notifying changes in trash can contents (or at least providing the data required to implement this feature for the library user).
 
 ## Examples
 

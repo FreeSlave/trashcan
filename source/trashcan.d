@@ -330,14 +330,16 @@ unittest
 
 version(Windows)
 {
-    import std.utf : toUTF8;
     import std.typecons : RefCounted, refCounted, RefCountedAutoInitialize;
     import std.windows.syserror : WindowsException;
 
     import core.sys.windows.windows;
     import core.sys.windows.shlobj;
+    import core.sys.windows.wtypes;
+    import core.sys.windows.oaidl;
 
     pragma(lib, "Ole32");
+    pragma(lib, "OleAut32");
 }
 
 version(Windows) private struct ItemIdList
@@ -359,9 +361,10 @@ version(Windows) private struct ItemIdList
 /// Item (file or folder) stored in the trashcan.
 struct TrashcanItem
 {
-    version(Windows) private @trusted this(string restorePath, bool isDir, LPITEMIDLIST pidl) {
+    version(Windows) private @trusted this(string restorePath, bool isDir, ref scope const SysTime deletionTime, LPITEMIDLIST pidl) {
         _restorePath = restorePath;
         _isDir = isDir;
+        _deletionTime = deletionTime;
         this.pidl = refCounted(ItemIdList(pidl));
     }
     static if (isFreedesktop) {
@@ -465,6 +468,24 @@ version(Windows) private
         }
     }
 
+    static @trusted SysTime StrRetToSysTime(ref scope STRRET strRet)
+    {
+        import std.string : replace;
+        if(strRet.uType == STRRET_WSTR)
+        {
+            scope(exit) CoTaskMemFree(strRet.pOleStr);
+            auto temp = strRet.pOleStr[0..lstrlenW(strRet.pOleStr)].replace(cast(wchar)8206, "").replace(cast(wchar)8207, "") ~ "\0";
+            DATE date;
+            if(SUCCEEDED(VarDateFromStr(temp.ptr, LOCALE_USER_DEFAULT, 0, &date)))
+            {
+                SYSTEMTIME sysTime;
+                if (VariantTimeToSystemTime(date, &sysTime))
+                    return SYSTEMTIMEToSysTime(&sysTime);
+            }
+        }
+        return SysTime.init;
+    }
+
     @safe static void henforce(HRESULT hres, lazy string msg = null, string file = __FILE__, size_t line = __LINE__)
     {
         if (hres != S_OK)
@@ -483,7 +504,7 @@ version(Windows) private
         return string.init;
     }
 
-    @trusted static string getDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
+    @trusted static string getStringDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
     in {
         assert(folder);
         assert(pidl);
@@ -493,6 +514,18 @@ version(Windows) private
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
             return StrRetToString(details.str);
         return string.init;
+    }
+
+    @trusted static SysTime getSysTimeDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
+    in {
+        assert(folder);
+        assert(pidl);
+    }
+    body {
+        SHELLDETAILS details;
+        if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
+            return StrRetToSysTime(details.str);
+        return SysTime.init;
     }
 
     @trusted static void RunVerb(string verb)(IShellFolder folder, LPITEMIDLIST pidl)
@@ -640,11 +673,12 @@ else version(Windows) final class Trashcan : ITrashcan
                 ULONG attributes = SFGAOF.SFGAO_FOLDER;
                 folder.GetAttributesOf(1,cast(LPCITEMIDLIST *)&pidl,&attributes);
                 string fileName = getDisplayNameOf(folder, pidl);
-                string extension = getDetailOf(folder, pidl, 166);
+                string extension = getStringDetailOf(folder, pidl, 166);
+                SysTime deletionTime = getSysTimeDetailOf(folder, pidl, 2);
                 // The returned name may or may not contain the extension depending on the view parameters of the recycle bin folder
                 if (fileName.extension != extension)
                     fileName ~= extension;
-                current = TrashcanItem(fileName, !!(attributes & SFGAOF.SFGAO_FOLDER), pidl);
+                current = TrashcanItem(fileName, !!(attributes & SFGAOF.SFGAO_FOLDER), deletionTime, pidl);
             }
         }
         bool empty() {

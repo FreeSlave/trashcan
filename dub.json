@@ -1,6 +1,6 @@
 {
     "name": "trashcan",
-    "description": "Move files to trash can programmatically",
+    "description": "Move files to trash can (aka recycle bin) programmatically",
     "copyright": "Copyright © 2016, Roman Chistokhodov",
     "license" : "BSL-1.0", 
     "authors" : ["Roman Chistokhodov"], 
@@ -10,7 +10,7 @@
 
     "dependencies": {
         "xdgpaths" : "~>0.2.5",
-        "volumeinfo" : "~>0.2.0",
+        "volumeinfo" : "~>0.2.1",
         "inilike" : "~>1.1.0"
     },
 }
