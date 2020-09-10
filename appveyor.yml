@@ -13,7 +13,8 @@ environment:
     - DC: ldc
       DVersion: stable
       arch: x64
- matrix:
+
+matrix:
   allow_failures:
     - DC: ldc
 
