@@ -465,17 +465,24 @@ version(Windows) private
             throw new WindowsException(hres, msg, file, line);
     }
 
-    @trusted static getDisplayNameOf(IShellFolder folder, LPITEMIDLIST pidl)
-    {
+    @trusted static string getDisplayNameOf(IShellFolder folder, LPITEMIDLIST pidl)
+    in {
         assert(folder);
         assert(pidl);
+    }
+    body {
         STRRET strRet;
-        henforce(folder.GetDisplayNameOf (pidl, SHGNO.SHGDN_NORMAL, &strRet), "Failed to get a display name");
-        return StrRetToString(strRet);
+        if (SUCCEEDED(folder.GetDisplayNameOf(pidl, SHGNO.SHGDN_NORMAL, &strRet)))
+            return StrRetToString(strRet);
+        return string.init;
     }
 
     @trusted static string getDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
-    {
+    in {
+        assert(folder);
+        assert(pidl);
+    }
+    body {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
             return StrRetToString(details.str);
