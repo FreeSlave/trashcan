@@ -13,6 +13,9 @@ environment:
     - DC: ldc
       DVersion: stable
       arch: x64
+ matrix:
+  allow_failures:
+    - DC: ldc
 
 skip_tags: true
 branches:
