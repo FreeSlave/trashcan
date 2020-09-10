@@ -425,6 +425,19 @@ private:
 
 version(Windows) private
 {
+    import core.sys.windows.oaidl : VARIANT;
+    // Redefine IShellFolder2 since it's bugged in druntime
+    interface IShellFolder2 : IShellFolder
+    {
+        HRESULT GetDefaultSearchGUID(GUID*);
+        HRESULT EnumSearches(IEnumExtraSearch*);
+        HRESULT GetDefaultColumn(DWORD, ULONG*, ULONG*);
+        HRESULT GetDefaultColumnState(UINT, SHCOLSTATEF*);
+        HRESULT GetDetailsEx(LPCITEMIDLIST, const(SHCOLUMNID)*, VARIANT*);
+        HRESULT GetDetailsOf(LPCITEMIDLIST, UINT, SHELLDETAILS*);
+        HRESULT MapColumnToSCID(UINT, SHCOLUMNID*);
+    }
+
     static @trusted string StrRetToString(ref STRRET strRet)
     {
         switch (strRet.uType)
@@ -459,6 +472,14 @@ version(Windows) private
         STRRET strRet;
         henforce(folder.GetDisplayNameOf (pidl, SHGNO.SHGDN_NORMAL, &strRet), "Failed to get a display name");
         return StrRetToString(strRet);
+    }
+
+    @trusted static string getDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
+    {
+        SHELLDETAILS details;
+        if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
+            return StrRetToString(details.str);
+        return string.init;
     }
 
     @trusted static void RunVerb(string verb)(IShellFolder folder, LPITEMIDLIST pidl)
@@ -559,7 +580,7 @@ else version(Windows) final class Trashcan : ITrashcan
         assert(pidlRecycleBin);
         scope(exit) ILFree(pidlRecycleBin);
 
-        henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder, cast(LPVOID *)&_recycleBin), "Failed to get recycle bin shell folder");
+        henforce(desktop.BindToObject(pidlRecycleBin, null, &IID_IShellFolder2, cast(LPVOID *)&_recycleBin), "Failed to get recycle bin shell folder");
         assert(_recycleBin);
         collectException(getDisplayNameOf(desktop, pidlRecycleBin), _displayName);
     }
@@ -572,7 +593,7 @@ else version(Windows) final class Trashcan : ITrashcan
 
     private static struct ByItem
     {
-        this(IShellFolder folder) {
+        this(IShellFolder2 folder) {
             this.folder = folder;
             folder.AddRef();
             with(SHCONTF) henforce(folder.EnumObjects(null, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS | SHCONTF_INCLUDEHIDDEN, &enumFiles), "Failed to enumerate objects in recycle bin");
@@ -605,14 +626,19 @@ else version(Windows) final class Trashcan : ITrashcan
                 assert(pidl);
                 ULONG attributes = SFGAOF.SFGAO_FOLDER;
                 folder.GetAttributesOf(1,cast(LPCITEMIDLIST *)&pidl,&attributes);
-                current = TrashcanItem(getDisplayNameOf(folder, pidl), !!(attributes & SFGAOF.SFGAO_FOLDER), pidl);
+                string fileName = getDisplayNameOf(folder, pidl);
+                string extension = getDetailOf(folder, pidl, 166);
+                // The returned name may or may not contain the extension depending on the view parameters of the recycle bin folder
+                if (fileName.extension != extension)
+                    fileName ~= extension;
+                current = TrashcanItem(fileName, !!(attributes & SFGAOF.SFGAO_FOLDER), pidl);
             }
         }
         bool empty() {
             return atTheEnd;
         }
     private:
-        IShellFolder folder;
+        IShellFolder2 folder;
         IEnumIDList enumFiles;
         TrashcanItem current;
         bool atTheEnd;
@@ -636,7 +662,7 @@ else version(Windows) final class Trashcan : ITrashcan
     }
 private:
     string _displayName;
-    IShellFolder _recycleBin;
+    IShellFolder2 _recycleBin;
 } else static if (isFreedesktop)
 {
     final class Trashcan : ITrashcan
