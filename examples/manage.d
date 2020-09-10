@@ -27,7 +27,7 @@ void main(string[] args)
     {
         items = trashCan.byItem.array.sort!((a,b) => a.restorePath.baseName < b.restorePath.baseName).array;
         foreach(i, item; items) {
-            writefln("%s: %s (%s)", i, item.restorePath, item.isDir ? "directory" : "file");
+            writefln("%s: %s (%s, deletion time: %s)", i, item.restorePath, item.isDir ? "directory" : "file", item.deletionTime.toISOExtString);
         }
     }
 

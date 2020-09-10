@@ -13,6 +13,7 @@ import std.string;
 import std.file;
 import std.exception;
 import std.range : InputRange, inputRangeObject;
+import std.datetime;
 
 import isfreedesktop;
 
@@ -294,7 +295,6 @@ private:
             string trashInfoPath = buildPath(trashInfoDir, path.baseName ~ ".trashinfo");
             string trashFilePath = buildPath(trashFilePathsDir, path.baseName);
 
-            import std.datetime;
             import std.conv : octal;
             import core.stdc.errno;
 
@@ -365,11 +365,12 @@ struct TrashcanItem
         this.pidl = refCounted(ItemIdList(pidl));
     }
     static if (isFreedesktop) {
-        private @trusted this(string restorePath, bool isDir, string trashInfoPath, string trashedPath) {
+        private @trusted this(string restorePath, bool isDir, ref scope const SysTime deletionTime, string trashInfoPath, string trashedPath) {
             assert(trashInfoPath.length != 0);
             assert(trashedPath.length != 0);
             _restorePath = restorePath;
             _isDir = isDir;
+            _deletionTime = deletionTime;
             _trashInfoPath = trashInfoPath;
             _trashedPath = trashedPath;
         }
@@ -381,6 +382,10 @@ struct TrashcanItem
     /// Whether the item is directory.
     @safe @property @nogc nothrow pure  bool isDir() const {
         return _isDir;
+    }
+    /// The time when the item was moved to trashcan.
+    @safe @property @nogc nothrow pure SysTime deletionTime() const {
+        return _deletionTime;
     }
     version(D_Ddoc) {
         alias void* LPITEMIDLIST;
@@ -416,6 +421,7 @@ struct TrashcanItem
 private:
     string _restorePath;
     bool _isDir;
+    SysTime _deletionTime;
     version(Windows) RefCounted!(ItemIdList, RefCountedAutoInitialize.no) pidl;
     static if (isFreedesktop) {
         string _trashInfoPath;
@@ -698,6 +704,7 @@ private:
                                 import inilike.read;
 
                                 string path;
+                                SysTime deletionTime;
 
                                 auto onLeadingComment = delegate void(string line) {};
                                 auto onGroup = delegate ActionOnGroup(string groupName) {
@@ -706,8 +713,13 @@ private:
                                     return ActionOnGroup.skip;
                                 };
                                 auto onKeyValue = delegate void(string key, string value, string groupName) {
-                                    if (groupName == "Trash Info" && key == "Path")
-                                        path = value;
+                                    if (groupName == "Trash Info")
+                                    {
+                                        if (key == "Path")
+                                            path = value;
+                                        else if (key == "DeletionDate")
+                                            collectException(SysTime.fromISOExtString(value), deletionTime);
+                                    }
                                 };
                                 auto onCommentInGroup = delegate void(string line, string groupName) {};
                                 readIniLike(iniLikeFileReader(entry.name), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
@@ -719,7 +731,7 @@ private:
                                         restorePath = path;
                                     else
                                         restorePath = buildPath(trash.root, path);
-                                    return TrashcanItem(restorePath, trashedFile.isDir, entry.name, trashedFile);
+                                    return TrashcanItem(restorePath, trashedFile.isDir, deletionTime, entry.name, trashedFile);
                                 }
                             }
                         } catch(Exception e) {}
