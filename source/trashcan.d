@@ -391,14 +391,17 @@ struct TrashcanItem
         return _deletionTime;
     }
     version(D_Ddoc) {
-        alias void* LPITEMIDLIST;
+        static if (!is(typeof(LPITEMIDLIST.init)))
+        {
+            static struct LPITEMIDLIST {}
+        }
         /**
          * Windows-specific function to get LPITEMIDLIST associated with item.
          *
          * Note:
          *  The returned object must not outlive this TrashcanItem (or its copies). If you want to keep this object around use $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb776433(v=vs.85).aspx, ILClone). Don't forget to call ILFree or CoTaskMemFree, when it's no longer needed.
          */
-        @system @property @nogc nothrow LPITEMIDLIST itemIdList() {return null;}
+        @system @property @nogc nothrow LPITEMIDLIST itemIdList() {return LPITEMIDLIST.init;}
         /**
          * Freedesktop-specific function to get .trashinfo file path.
          */
@@ -447,7 +450,7 @@ version(Windows) private
         HRESULT MapColumnToSCID(UINT, SHCOLUMNID*);
     }
 
-    static @trusted string StrRetToString(ref STRRET strRet)
+    static @trusted string StrRetToString(ref scope STRRET strRet)
     {
         switch (strRet.uType)
         {
@@ -602,14 +605,17 @@ version(D_Ddoc)
          */
         @property @safe string displayName() nothrow {return string.init;}
 
-        alias void* IShellFolder;
+        static if (!is(typeof(IShellFolder2.init)))
+        {
+            static struct IShellFolder2 {}
+        }
         /**
-         * Windows-only function to get $(LINK2 https://msdn.microsoft.com/en-us/library/windows/desktop/bb775075(v=vs.85).aspx, IShellFolder) object associated with recycle bin.
+         * Windows-only function to get $(LINK2 https://docs.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellfolder2, IShellFolder2) object associated with recycle bin.
          *
          * Note:
          *  If you want a returned object to outlive $(D Trashcan), you must call AddRef on it (and then Release when it's no longer needed).
          */
-        @system @property @nogc IShellFolder recycleBin() nothrow {return null;}
+        @system @property @nogc IShellFolder2 recycleBin() nothrow {return IShellFolder2.init;}
     }
 }
 else version(Windows) final class Trashcan : ITrashcan
@@ -704,7 +710,7 @@ else version(Windows) final class Trashcan : ITrashcan
     @property @safe string displayName() nothrow {
         return _displayName;
     }
-    @property @system @nogc IShellFolder recycleBin() nothrow {
+    @property @system @nogc IShellFolder2 recycleBin() nothrow {
         return _recycleBin;
     }
 private:
