@@ -784,7 +784,14 @@ private:
             collectException(remove(item.trashInfoPath));
         }
         @safe void erase(ref scope TrashcanItem item) {
-            remove(item.trashedPath);
+            static @trusted void trustedErase(string path)
+            {
+                if (path.isDir)
+                    rmdirRecurse(path);
+                else
+                    remove(path);
+            }
+            trustedErase(item.trashedPath);
             collectException(remove(item.trashInfoPath));
         }
         @property @safe string displayName() nothrow {
