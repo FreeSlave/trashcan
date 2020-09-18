@@ -192,7 +192,8 @@ private:
  *  path = Path of item to remove. Must be absolute.
  *  options = Control behavior of trashing on freedesktop environments.
  * Throws:
- *  Exception when given path is not absolute or does not exist or some error occured during operation.
+ *  $(B Exception) when given path is not absolute or does not exist, or some error occured during operation,
+ *  or the operation is not supported on the current platform.
  */
 @trusted void moveToTrash(scope string path, TrashOptions options = TrashOptions.all)
 {
@@ -317,7 +318,7 @@ private:
 
             path.rename(trashFilePath);
         } else {
-            static assert("Unsupported platform");
+            throw new Exception("Trashing operation is not implemented on this platform");
         }
     }
 }
