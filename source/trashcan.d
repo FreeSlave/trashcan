@@ -83,7 +83,7 @@ static if (isFreedesktop)
 private:
     import std.format : format;
 
-    @trusted string numberedBaseName(string path, uint number) {
+    @trusted string numberedBaseName(scope string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
     }
 
@@ -93,7 +93,7 @@ private:
         assert(numberedBaseName("/root/file", 2) == "file 2");
     }
 
-    @trusted string ensureDirExists(string dir) {
+    @trusted string ensureDirExists(scope string dir) {
         std.file.mkdirRecurse(dir);
         return dir;
     }
@@ -128,7 +128,7 @@ private:
         assertNotThrown(checkDiskTrashMode(S_IFDIR, false));
     }
 
-    @trusted string checkDiskTrash(string topdir, const bool checkStickyBit = true)
+    @trusted string checkDiskTrash(scope string topdir, const bool checkStickyBit = true)
     in {
         assert(topdir.length);
     }
@@ -140,7 +140,7 @@ private:
         return trashDir;
     }
 
-    string userTrashSubdir(string trashDir, uid_t uid) {
+    @safe string userTrashSubdir(scope string trashDir, uid_t uid) {
         import std.conv : to;
         return buildPath(trashDir, uid.to!string);
     }
@@ -150,12 +150,12 @@ private:
         assert(userTrashSubdir("/.Trash", 600) == buildPath("/.Trash", "600"));
     }
 
-    @trusted string ensureUserTrashSubdir(string trashDir)
+    @trusted string ensureUserTrashSubdir(scope string trashDir)
     {
         return userTrashSubdir(trashDir, getuid()).ensureDirExists();
     }
 
-    string userTrashDir(string topdir, uid_t uid) {
+    @safe string userTrashDir(string topdir, uid_t uid) {
         return buildPath(topdir, format(".Trash-%s", uid));
     }
 
@@ -164,7 +164,7 @@ private:
         assert(userTrashDir("/topdir", 700) == buildPath("/topdir", ".Trash-700"));
     }
 
-    @trusted string ensureUserTrashDir(string topdir)
+    @trusted string ensureUserTrashDir(scope string topdir)
     {
         return userTrashDir(topdir, getuid()).ensureDirExists();
     }
@@ -195,7 +195,7 @@ private:
  * Throws:
  *  Exception when given path is not absolute or does not exist or some error occured during operation.
  */
-@trusted void moveToTrash(string path, TrashOptions options = TrashOptions.all)
+@trusted void moveToTrash(scope string path, TrashOptions options = TrashOptions.all)
 {
     if (!path.isAbsolute) {
         throw new Exception("Path must be absolute");
