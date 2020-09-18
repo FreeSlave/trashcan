@@ -20,7 +20,6 @@ import isfreedesktop;
 static if (isFreedesktop) {
     import std.uri : encode, decode;
     import volumeinfo;
-    import inilike.file;
     import xdgpaths : xdgDataHome, xdgAllDataDirs;
 }
 
@@ -740,7 +739,6 @@ private:
                                 string path;
                                 SysTime deletionTime;
 
-                                auto onLeadingComment = delegate void(string line) {};
                                 auto onGroup = delegate ActionOnGroup(string groupName) {
                                     if (groupName == "Trash Info")
                                         return ActionOnGroup.stopAfter;
@@ -755,8 +753,7 @@ private:
                                             collectException(SysTime.fromISOExtString(value), deletionTime);
                                     }
                                 };
-                                auto onCommentInGroup = delegate void(string line, string groupName) {};
-                                readIniLike(iniLikeFileReader(entry.name), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
+                                readIniLike(iniLikeFileReader(entry.name), null, onGroup, onKeyValue, null);
 
                                 if (path.length) {
                                     path = path.decode();
@@ -808,19 +805,37 @@ private:
                     }
                 }
 
-                static @safe string readTrashName(const(string)[] desktopFiles, string locale) nothrow {
-                    import std.typecons : No;
+                static @trusted string readTrashName(scope const(string)[] desktopFiles, scope string locale) nothrow {
                     foreach(path; desktopFiles) {
                         if (!path.exists)
                             continue;
                         try {
-                            auto trashDesktop = new IniLikeFile(path, IniLikeFile.ReadOptions(IniLikeFile.DuplicateGroupPolicy.skip, IniLikeFile.DuplicateKeyPolicy.skip, No.preserveComments));
-                            auto desktopEntry = trashDesktop.group("Desktop Entry");
-                            if (desktopEntry) {
-                                string name = desktopEntry.unescapedValue("Name", locale);
-                                if (name.length)
-                                    return name;
-                            }
+                            import inilike.read;
+                            import inilike.common;
+
+                            string name;
+                            string bestLocale;
+
+                            auto onGroup = delegate ActionOnGroup(string groupName) {
+                                if (groupName == "Desktop Entry")
+                                    return ActionOnGroup.stopAfter;
+                                return ActionOnGroup.skip;
+                            };
+                            auto onKeyValue = delegate void(string key, string value, string groupName) {
+                                if (groupName == "Desktop Entry")
+                                {
+                                    auto keyAndLocale = separateFromLocale(key);
+                                    if (keyAndLocale[0] == "Name")
+                                    {
+                                        auto lv = selectLocalizedValue(locale, keyAndLocale[1], value, bestLocale, name);
+                                        bestLocale = lv[0];
+                                        name = lv[1].unescapeValue();
+                                    }
+                                }
+                            };
+                            readIniLike(iniLikeFileReader(path), null, onGroup, onKeyValue, null);
+                            if (name.length)
+                                return name;
                         } catch(Exception e) {}
                     }
                     return string.init;
