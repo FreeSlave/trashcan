@@ -335,11 +335,13 @@ version(Windows)
 
     import core.sys.windows.windows;
     import core.sys.windows.shlobj;
+    import core.sys.windows.shlwapi;
     import core.sys.windows.wtypes;
     import core.sys.windows.oaidl;
 
     pragma(lib, "Ole32");
     pragma(lib, "OleAut32");
+    pragma(lib, "Shlwapi.lib");
 }
 
 version(Windows) private struct ItemIdList
@@ -450,34 +452,33 @@ version(Windows) private
         HRESULT MapColumnToSCID(UINT, SHCOLUMNID*);
     }
 
-    static @trusted string StrRetToString(ref scope STRRET strRet)
+    static @trusted string StrRetToString(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
-        switch (strRet.uType)
-        {
-        case STRRET_CSTR:
-            return fromStringz(strRet.cStr.ptr).idup;
-        case STRRET_OFFSET:
-            return string.init;
-        case STRRET_WSTR:
-            char[MAX_PATH] szTemp;
-            auto len = WideCharToMultiByte (CP_UTF8, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
-            scope(exit) CoTaskMemFree(strRet.pOleStr);
-            if (len)
-                return szTemp[0..len-1].idup;
-            else
-                return string.init;
-        default:
-            return string.init;
+        import std.utf : toUTF8;
+        wchar* wstr;
+        if (SUCCEEDED(StrRetToStrW(&strRet, pidl, &wstr))) {
+            scope(exit) CoTaskMemFree(wstr);
+            return assumeUnique(wstr[0..lstrlenW(wstr)].toUTF8);
         }
+        return string.init;
     }
 
-    static @trusted SysTime StrRetToSysTime(ref scope STRRET strRet)
+    static @trusted wchar[] StrRetToWString(ref scope STRRET strRet, LPITEMIDLIST pidl)
+    {
+        wchar* wstr;
+        if (SUCCEEDED(StrRetToStrW(&strRet, pidl, &wstr))) {
+            scope(exit) CoTaskMemFree(wstr);
+            return wstr[0..lstrlenW(wstr)].dup;
+        }
+        return (wchar[]).init;
+    }
+
+    static @trusted SysTime StrRetToSysTime(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
         import std.string : replace;
-        if(strRet.uType == STRRET_WSTR)
-        {
-            scope(exit) CoTaskMemFree(strRet.pOleStr);
-            auto temp = strRet.pOleStr[0..lstrlenW(strRet.pOleStr)].replace(cast(wchar)8206, "").replace(cast(wchar)8207, "") ~ "\0";
+        auto str = StrRetToWString(strRet, pidl);
+        if (str.length) {
+            auto temp = str.replace(cast(wchar)8206, "").replace(cast(wchar)8207, "") ~ "\0";
             DATE date;
             if(SUCCEEDED(VarDateFromStr(temp.ptr, LOCALE_USER_DEFAULT, 0, &date)))
             {
@@ -503,7 +504,7 @@ version(Windows) private
     body {
         STRRET strRet;
         if (SUCCEEDED(folder.GetDisplayNameOf(pidl, SHGNO.SHGDN_NORMAL, &strRet)))
-            return StrRetToString(strRet);
+            return StrRetToString(strRet, pidl);
         return string.init;
     }
 
@@ -515,7 +516,7 @@ version(Windows) private
     body {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
-            return StrRetToString(details.str);
+            return StrRetToString(details.str, pidl);
         return string.init;
     }
 
@@ -527,7 +528,7 @@ version(Windows) private
     body {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
-            return StrRetToSysTime(details.str);
+            return StrRetToSysTime(details.str, pidl);
         return SysTime.init;
     }
 
