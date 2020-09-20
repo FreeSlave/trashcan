@@ -622,7 +622,7 @@ version(D_Ddoc)
 else version(Windows) final class Trashcan : ITrashcan
 {
     @trusted this() {
-        OleInitialize(null);
+        CoInitializeEx(null, COINIT.COINIT_APARTMENTTHREADED);
         IShellFolder desktop;
         LPITEMIDLIST pidlRecycleBin;
 
@@ -641,7 +641,7 @@ else version(Windows) final class Trashcan : ITrashcan
     @trusted ~this() {
         assert(_recycleBin);
         _recycleBin.Release();
-        OleUninitialize();
+        CoUninitialize();
     }
 
     private static struct ByItem
