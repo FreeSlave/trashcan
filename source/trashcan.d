@@ -20,7 +20,6 @@ import isfreedesktop;
 static if (isFreedesktop) {
     import std.uri : encode, decode;
     import volumeinfo;
-    import inilike.file;
     import xdgpaths : xdgDataHome, xdgAllDataDirs;
 }
 
@@ -83,7 +82,7 @@ static if (isFreedesktop)
 private:
     import std.format : format;
 
-    @trusted string numberedBaseName(string path, uint number) {
+    @trusted string numberedBaseName(scope string path, uint number) {
         return format("%s %s%s", path.baseName.stripExtension, number, path.extension);
     }
 
@@ -93,7 +92,7 @@ private:
         assert(numberedBaseName("/root/file", 2) == "file 2");
     }
 
-    @trusted string ensureDirExists(string dir) {
+    @trusted string ensureDirExists(scope string dir) {
         std.file.mkdirRecurse(dir);
         return dir;
     }
@@ -128,7 +127,7 @@ private:
         assertNotThrown(checkDiskTrashMode(S_IFDIR, false));
     }
 
-    @trusted string checkDiskTrash(string topdir, const bool checkStickyBit = true)
+    @trusted string checkDiskTrash(scope string topdir, const bool checkStickyBit = true)
     in {
         assert(topdir.length);
     }
@@ -140,7 +139,7 @@ private:
         return trashDir;
     }
 
-    string userTrashSubdir(string trashDir, uid_t uid) {
+    @safe string userTrashSubdir(scope string trashDir, uid_t uid) {
         import std.conv : to;
         return buildPath(trashDir, uid.to!string);
     }
@@ -150,12 +149,12 @@ private:
         assert(userTrashSubdir("/.Trash", 600) == buildPath("/.Trash", "600"));
     }
 
-    @trusted string ensureUserTrashSubdir(string trashDir)
+    @trusted string ensureUserTrashSubdir(scope string trashDir)
     {
         return userTrashSubdir(trashDir, getuid()).ensureDirExists();
     }
 
-    string userTrashDir(string topdir, uid_t uid) {
+    @safe string userTrashDir(string topdir, uid_t uid) {
         return buildPath(topdir, format(".Trash-%s", uid));
     }
 
@@ -164,7 +163,7 @@ private:
         assert(userTrashDir("/topdir", 700) == buildPath("/topdir", ".Trash-700"));
     }
 
-    @trusted string ensureUserTrashDir(string topdir)
+    @trusted string ensureUserTrashDir(scope string topdir)
     {
         return userTrashDir(topdir, getuid()).ensureDirExists();
     }
@@ -193,9 +192,10 @@ private:
  *  path = Path of item to remove. Must be absolute.
  *  options = Control behavior of trashing on freedesktop environments.
  * Throws:
- *  Exception when given path is not absolute or does not exist or some error occured during operation.
+ *  $(B Exception) when given path is not absolute or does not exist, or some error occured during operation,
+ *  or the operation is not supported on the current platform.
  */
-@trusted void moveToTrash(string path, TrashOptions options = TrashOptions.all)
+@trusted void moveToTrash(scope string path, TrashOptions options = TrashOptions.all)
 {
     if (!path.isAbsolute) {
         throw new Exception("Path must be absolute");
@@ -318,7 +318,7 @@ private:
 
             path.rename(trashFilePath);
         } else {
-            static assert("Unsupported platform");
+            throw new Exception("Trashing operation is not implemented on this platform");
         }
     }
 }
@@ -746,7 +746,6 @@ private:
                                 string path;
                                 SysTime deletionTime;
 
-                                auto onLeadingComment = delegate void(string line) {};
                                 auto onGroup = delegate ActionOnGroup(string groupName) {
                                     if (groupName == "Trash Info")
                                         return ActionOnGroup.stopAfter;
@@ -761,8 +760,7 @@ private:
                                             collectException(SysTime.fromISOExtString(value), deletionTime);
                                     }
                                 };
-                                auto onCommentInGroup = delegate void(string line, string groupName) {};
-                                readIniLike(iniLikeFileReader(entry.name), onLeadingComment, onGroup, onKeyValue, onCommentInGroup);
+                                readIniLike(iniLikeFileReader(entry.name), null, onGroup, onKeyValue, null);
 
                                 if (path.length) {
                                     path = path.decode();
@@ -790,7 +788,14 @@ private:
             collectException(remove(item.trashInfoPath));
         }
         @safe void erase(ref scope TrashcanItem item) {
-            remove(item.trashedPath);
+            static @trusted void trustedErase(string path)
+            {
+                if (path.isDir)
+                    rmdirRecurse(path);
+                else
+                    remove(path);
+            }
+            trustedErase(item.trashedPath);
             collectException(remove(item.trashInfoPath));
         }
         @property @safe string displayName() nothrow {
@@ -801,25 +806,43 @@ private:
                 {
                     import std.process : environment;
                     try {
-                        return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+                        return environment.get("LC_ALL", environment.get("LC_MESSAGES", environment.get("LANG")));
                     } catch(Exception e) {
                         return null;
                     }
                 }
 
-                static @safe string readTrashName(const(string)[] desktopFiles, string locale) nothrow {
-                    import std.typecons : No;
+                static @trusted string readTrashName(scope const(string)[] desktopFiles, scope string locale) nothrow {
                     foreach(path; desktopFiles) {
                         if (!path.exists)
                             continue;
                         try {
-                            auto trashDesktop = new IniLikeFile(path, IniLikeFile.ReadOptions(IniLikeFile.DuplicateGroupPolicy.skip, IniLikeFile.DuplicateKeyPolicy.skip, No.preserveComments));
-                            auto desktopEntry = trashDesktop.group("Desktop Entry");
-                            if (desktopEntry) {
-                                string name = desktopEntry.unescapedValue("Name", locale);
-                                if (name.length)
-                                    return name;
-                            }
+                            import inilike.read;
+                            import inilike.common;
+
+                            string name;
+                            string bestLocale;
+
+                            auto onGroup = delegate ActionOnGroup(string groupName) {
+                                if (groupName == "Desktop Entry")
+                                    return ActionOnGroup.stopAfter;
+                                return ActionOnGroup.skip;
+                            };
+                            auto onKeyValue = delegate void(string key, string value, string groupName) {
+                                if (groupName == "Desktop Entry")
+                                {
+                                    auto keyAndLocale = separateFromLocale(key);
+                                    if (keyAndLocale[0] == "Name")
+                                    {
+                                        auto lv = selectLocalizedValue(locale, keyAndLocale[1], value, bestLocale, name);
+                                        bestLocale = lv[0];
+                                        name = lv[1].unescapeValue();
+                                    }
+                                }
+                            };
+                            readIniLike(iniLikeFileReader(path), null, onGroup, onKeyValue, null);
+                            if (name.length)
+                                return name;
                         } catch(Exception e) {}
                     }
                     return string.init;

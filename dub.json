@@ -10,7 +10,7 @@
 
     "dependencies": {
         "xdgpaths" : "~>0.2.5",
-        "volumeinfo" : "~>0.2.1",
-        "inilike" : "~>1.1.0"
+        "volumeinfo" : "~>0.2.2",
+        "inilike" : "~>1.2.0"
     },
 }
