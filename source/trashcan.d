@@ -338,10 +338,10 @@ version(Windows)
     import core.sys.windows.shlwapi;
     import core.sys.windows.wtypes;
     import core.sys.windows.oaidl;
+    import core.sys.windows.objidl;
 
     pragma(lib, "Ole32");
     pragma(lib, "OleAut32");
-    pragma(lib, "Shlwapi.lib");
 }
 
 version(Windows) private struct ItemIdList
@@ -415,7 +415,7 @@ struct TrashcanItem
     } else version(Windows) {
         @system @property @nogc nothrow LPITEMIDLIST itemIdList() {
             if (pidl.refCountedStore.isInitialized)
-                return pidl;
+                return pidl.refCountedPayload.pidl;
             return null;
         }
     } else static if (isFreedesktop) {
@@ -439,7 +439,6 @@ private:
 
 version(Windows) private
 {
-    import core.sys.windows.oaidl : VARIANT;
     // Redefine IShellFolder2 since it's bugged in druntime
     interface IShellFolder2 : IShellFolder
     {
@@ -452,25 +451,95 @@ version(Windows) private
         HRESULT MapColumnToSCID(UINT, SHCOLUMNID*);
     }
 
+    // Define missing declarations
+    alias SICHINTF = DWORD;
+
+    enum SIGDN {
+      SIGDN_NORMALDISPLAY,
+      SIGDN_PARENTRELATIVEPARSING,
+      SIGDN_DESKTOPABSOLUTEPARSING,
+      SIGDN_PARENTRELATIVEEDITING,
+      SIGDN_DESKTOPABSOLUTEEDITING,
+      SIGDN_FILESYSPATH,
+      SIGDN_URL,
+      SIGDN_PARENTRELATIVEFORADDRESSBAR,
+      SIGDN_PARENTRELATIVE,
+      SIGDN_PARENTRELATIVEFORUI
+    };
+
+    interface IShellItem : IUnknown {
+        HRESULT BindToHandler(IBindCtx pbc, REFGUID bhid, REFIID riid, void **ppv);
+        HRESULT GetParent(IShellItem *ppsi);
+        HRESULT GetDisplayName(SIGDN  sigdnName, LPWSTR *ppszName);
+        HRESULT GetAttributes(SFGAOF sfgaoMask, SFGAOF *psfgaoAttribs);
+        HRESULT Compare(IShellItem psi, SICHINTF hint, int *piOrder);
+    }
+
+    extern(Windows) HRESULT SHCreateShellItem(LPCITEMIDLIST pidlParent, IShellFolder psfParent, LPCITEMIDLIST pidl, IShellItem *ppsi) nothrow @nogc;
+
+    alias IFileOperationProgressSink = IUnknown;
+    alias IOperationsProgressDialog = IUnknown;
+    alias IPropertyChangeArray = IUnknown;
+
+    immutable CLSID CLSID_FileOperation = {0x3ad05575,0x8857,0x4850,[0x92,0x77,0x11,0xb8,0x5b,0xdb,0x8e,0x9]};
+    immutable IID IID_IFileOperation = {0x947aab5f,0xa5c,0x4c13,[0xb4,0xd6,0x4b,0xf7,0x83,0x6f,0xc9,0xf8]};
+
+    interface IFileOperation : IUnknown
+    {
+        HRESULT Advise(IFileOperationProgressSink pfops, DWORD *pdwCookie);
+        HRESULT Unadvise(DWORD dwCookie);
+        HRESULT SetOperationFlags(DWORD dwOperationFlags);
+        HRESULT SetProgressMessage(LPCWSTR pszMessage);
+        HRESULT SetProgressDialog(IOperationsProgressDialog popd);
+        HRESULT SetProperties (IPropertyChangeArray pproparray);
+        HRESULT SetOwnerWindow(HWND hwndOwner);
+        HRESULT ApplyPropertiesToItem(IShellItem psiItem);
+        HRESULT ApplyPropertiesToItems (IUnknown punkItems);
+        HRESULT RenameItem(IShellItem psiItem, LPCWSTR pszNewName, IFileOperationProgressSink pfopsItem);
+        HRESULT RenameItems(IUnknown pUnkItems, LPCWSTR pszNewName);
+        HRESULT MoveItem(IShellItem psiItem, IShellItem psiDestinationFolder, LPCWSTR pszNewName, IFileOperationProgressSink pfopsItem);
+        HRESULT MoveItems(IUnknown punkItems, IShellItem psiDestinationFolder);
+        HRESULT CopyItem(IShellItem psiItem, IShellItem psiDestinationFolder, LPCWSTR pszCopyName, IFileOperationProgressSink pfopsItem);
+        HRESULT CopyItems(IUnknown punkItems, IShellItem psiDestinationFolder);
+        HRESULT DeleteItem(IShellItem psiItem, IFileOperationProgressSink pfopsItem);
+        HRESULT DeleteItems(IUnknown punkItems);
+        HRESULT NewItem(IShellItem psiDestinationFolder, DWORD dwFileAttributes, LPCWSTR pszName, LPCWSTR pszTemplateName, IFileOperationProgressSink pfopsItem);
+        HRESULT PerformOperations();
+        HRESULT GetAnyOperationsAborted(BOOL *pfAnyOperationsAborted);
+    }
+
     static @trusted string StrRetToString(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
-        import std.utf : toUTF8;
-        wchar* wstr;
-        if (SUCCEEDED(StrRetToStrW(&strRet, pidl, &wstr))) {
-            scope(exit) CoTaskMemFree(wstr);
-            return assumeUnique(wstr[0..lstrlenW(wstr)].toUTF8);
+        import std.string : fromStringz;
+        switch (strRet.uType)
+        {
+        case STRRET_CSTR:
+            return fromStringz(strRet.cStr.ptr).idup;
+        case STRRET_OFFSET:
+            return string.init;
+        case STRRET_WSTR:
+            char[MAX_PATH] szTemp;
+            auto len = WideCharToMultiByte (CP_UTF8, 0, strRet.pOleStr, -1, szTemp.ptr, szTemp.sizeof, null, null);
+            scope(exit) CoTaskMemFree(strRet.pOleStr);
+            if (len)
+                return szTemp[0..len-1].idup;
+            else
+                return string.init;
+        default:
+            return string.init;
         }
-        return string.init;
     }
 
     static @trusted wchar[] StrRetToWString(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
-        wchar* wstr;
-        if (SUCCEEDED(StrRetToStrW(&strRet, pidl, &wstr))) {
-            scope(exit) CoTaskMemFree(wstr);
-            return wstr[0..lstrlenW(wstr)].dup;
+        switch (strRet.uType)
+        {
+        case STRRET_WSTR:
+            scope(exit) CoTaskMemFree(strRet.pOleStr);
+            return strRet.pOleStr[0..lstrlenW(strRet.pOleStr)].dup;
+        default:
+            return (wchar[]).init;
         }
-        return (wchar[]).init;
     }
 
     static @trusted SysTime StrRetToSysTime(ref scope STRRET strRet, LPITEMIDLIST pidl)
@@ -478,7 +547,7 @@ version(Windows) private
         import std.string : replace;
         auto str = StrRetToWString(strRet, pidl);
         if (str.length) {
-            auto temp = str.replace(cast(wchar)8206, "").replace(cast(wchar)8207, "") ~ "\0";
+            auto temp = str.replace('\u200E', "").replace('\u200F', "") ~ "\0";
             DATE date;
             if(SUCCEEDED(VarDateFromStr(temp.ptr, LOCALE_USER_DEFAULT, 0, &date)))
             {
@@ -533,7 +602,10 @@ version(Windows) private
     }
 
     @trusted static void RunVerb(string verb)(IShellFolder folder, LPITEMIDLIST pidl)
-    {
+    in {
+        assert(folder);
+    }
+    body {
         enforce(pidl !is null, "Empty trashcan item, can't run an operation");
         IContextMenu contextMenu;
         henforce(folder.GetUIObjectOf(null, 1, cast(LPCITEMIDLIST*)(&pidl), &IID_IContextMenu, null, cast(LPVOID *)&contextMenu), "Failed to get context menu ui object");
@@ -545,6 +617,27 @@ version(Windows) private
         ci.cbSize = CMINVOKECOMMANDINFO.sizeof;
         ci.lpVerb  = verb;
         henforce(contextMenu.InvokeCommand(&ci), "Failed to " ~ verb ~ " item");
+    }
+
+    @trusted static void RunDeleteOperation(IShellFolder folder, LPITEMIDLIST pidl)
+    in {
+        assert(folder);
+    }
+    body {
+        enforce(pidl !is null, "Empty trashcan item, can't run an operation");
+        IShellItem item;
+        henforce(SUCCEEDED(SHCreateShellItem(null, folder, pidl, &item)), "Failed to get IShellItem");
+        assert(item);
+        scope(exit) item.Release();
+
+        IFileOperation op;
+        henforce(SUCCEEDED(CoCreateInstance(&CLSID_FileOperation, null, CLSCTX_ALL, &IID_IFileOperation, cast(void**)&op)), "Failed to create instance of IFileOperation");
+        assert(op);
+        scope(exit) op.Release();
+
+        op.SetOperationFlags(FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT);
+        op.DeleteItem(item, null);
+        henforce(SUCCEEDED(op.PerformOperations()), "Failed to perform file deletion operation");
     }
 }
 
@@ -702,11 +795,18 @@ else version(Windows) final class Trashcan : ITrashcan
         return inputRangeObject(ByItem(_recycleBin));
     }
 
+    private @trusted void trustedRestore(ref scope TrashcanItem item) {
+        RunVerb!"undelete"(_recycleBin, item.itemIdList);
+    }
     @safe void restore(ref scope TrashcanItem item) {
-        RunVerb!"undelete"(_recycleBin, item.pidl);
+        trustedRestore(item);
+    }
+    private @trusted void trustedErase(ref scope TrashcanItem item) {
+        RunVerb!"delete"(_recycleBin, item.itemIdList);
     }
     @safe void erase(ref scope TrashcanItem item) {
-        RunVerb!"delete"(_recycleBin, item.pidl);
+        //RunDeleteOperation(_recycleBin, item.itemIdList);
+        trustedErase(item);
     }
     @property @safe string displayName() nothrow {
         return _displayName;
