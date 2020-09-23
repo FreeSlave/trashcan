@@ -530,24 +530,38 @@ version(Windows) private
         }
     }
 
-    static @trusted wchar[] StrRetToWString(ref scope STRRET strRet, LPITEMIDLIST pidl)
+    static @trusted wstring StrRetToWString(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
         switch (strRet.uType)
         {
+        case STRRET_CSTR:
+        {
+            char[] cstr = fromStringz(strRet.cStr.ptr);
+            wchar[] toReturn;
+            toReturn.reserve(cstr.length);
+            foreach(char c; cstr)
+                toReturn ~= cast(wchar)c;
+            return assumeUnique(toReturn);
+        }
         case STRRET_WSTR:
             scope(exit) CoTaskMemFree(strRet.pOleStr);
-            return strRet.pOleStr[0..lstrlenW(strRet.pOleStr)].dup;
+            return strRet.pOleStr[0..lstrlenW(strRet.pOleStr)].idup;
         default:
-            return (wchar[]).init;
+            return wstring.init;
         }
     }
 
     static @trusted SysTime StrRetToSysTime(ref scope STRRET strRet, LPITEMIDLIST pidl)
     {
-        import std.string : replace;
         auto str = StrRetToWString(strRet, pidl);
         if (str.length) {
-            auto temp = str.replace('\u200E', "").replace('\u200F', "") ~ "\0";
+            wchar[] temp;
+            temp.reserve(str.length + 1);
+            foreach(wchar c; str) {
+                if (c != '\u200E' && c != '\u200F')
+                    temp ~= c;
+            }
+            temp ~= '\0';
             DATE date;
             if(SUCCEEDED(VarDateFromStr(temp.ptr, LOCALE_USER_DEFAULT, 0, &date)))
             {
