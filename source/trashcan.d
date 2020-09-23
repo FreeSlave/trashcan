@@ -380,7 +380,7 @@ struct TrashcanItem
             _trashedPath = trashedPath;
         }
     }
-    /// Original location of item (before it was moved to trashcan).
+    /// Original location of the item (absolute path) before it was moved to trashcan.
     @safe @property @nogc nothrow pure string restorePath() const {
         return _restorePath;
     }
@@ -750,8 +750,6 @@ version(D_Ddoc)
         @safe void restore(ref scope TrashcanItem item) {}
         /**
          * Erase item from trashcan.
-         * Bugs:
-         *  On Windows it brings up the GUI dialog. If you know how to implement silent deleting, make a pull request!
          * Throws:
          *  $(B WindowsException) on Windows when the operation failed.$(BR)
          *  $(B FileException) on Posix when could not delete the item.$(BR)
