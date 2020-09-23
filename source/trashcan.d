@@ -476,6 +476,7 @@ version(Windows) private
     }
 
     extern(Windows) HRESULT SHCreateShellItem(LPCITEMIDLIST pidlParent, IShellFolder psfParent, LPCITEMIDLIST pidl, IShellItem *ppsi) nothrow @nogc;
+    extern(Windows) LPITEMIDLIST ILCreateFromPath(PCTSTR pszPath);
 
     alias IFileOperationProgressSink = IUnknown;
     alias IOperationsProgressDialog = IUnknown;
@@ -603,6 +604,18 @@ version(Windows) private
         return string.init;
     }
 
+    @trusted static wstring getWStringDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
+    in {
+        assert(folder);
+        assert(pidl);
+    }
+    body {
+        SHELLDETAILS details;
+        if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
+            return StrRetToWString(details.str, pidl);
+        return wstring.init;
+    }
+
     @trusted static SysTime getSysTimeDetailOf(IShellFolder2 folder, LPITEMIDLIST pidl, uint index)
     in {
         assert(folder);
@@ -633,24 +646,63 @@ version(Windows) private
         henforce(contextMenu.InvokeCommand(&ci), "Failed to " ~ verb ~ " item");
     }
 
+    @trusted static IFileOperation CreateFileOperation()
+    {
+        IFileOperation op;
+        henforce(CoCreateInstance(&CLSID_FileOperation, null, CLSCTX_ALL, &IID_IFileOperation, cast(void**)&op), "Failed to create instance of IFileOperation");
+        assert(op);
+        return op;
+    }
+
+    @trusted static IShellItem CreateShellItem(IShellFolder folder, LPITEMIDLIST pidl)
+    {
+        IShellItem item;
+        henforce(SHCreateShellItem(null, folder, pidl, &item), "Failed to get IShellItem");
+        assert(item);
+        return item;
+    }
+
     @trusted static void RunDeleteOperation(IShellFolder folder, LPITEMIDLIST pidl)
     in {
         assert(folder);
     }
     body {
-        enforce(pidl !is null, "Empty trashcan item, can't run an operation");
-        IShellItem item;
-        henforce(SHCreateShellItem(null, folder, pidl, &item), "Failed to get IShellItem");
-        assert(item);
+        enforce(pidl !is null, "Empty trashcan item, can't run a delete operation");
+        IShellItem item = CreateShellItem(folder, pidl);
         scope(exit) item.Release();
 
-        IFileOperation op;
-        henforce(CoCreateInstance(&CLSID_FileOperation, null, CLSCTX_ALL, &IID_IFileOperation, cast(void**)&op), "Failed to create instance of IFileOperation");
-        assert(op);
+        IFileOperation op = CreateFileOperation();
         scope(exit) op.Release();
 
         op.SetOperationFlags(FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT);
         op.DeleteItem(item, null);
+        henforce(op.PerformOperations(), "Failed to perform file deletion operation");
+    }
+
+    @trusted static void RunRestoreOperation(IShellFolder2 folder, LPITEMIDLIST pidl)
+    in {
+        assert(folder);
+    }
+    body {
+        enforce(pidl !is null, "Empty trashcan item, can't run a restore operation");
+
+        import std.utf;
+        wstring originalLocation = getWStringDetailOf(folder, pidl, 1);
+        auto originalLocationZ = originalLocation.toUTF16z;
+
+        auto originalLocationPidl = ILCreateFromPath(originalLocationZ);
+        scope(exit) ILFree(originalLocationPidl);
+
+        IShellItem originalLocationItem = CreateShellItem(null, originalLocationPidl);
+
+        IShellItem item = CreateShellItem(folder, pidl);
+        scope(exit) item.Release();
+
+        IFileOperation op = CreateFileOperation();
+        scope(exit) op.Release();
+
+        op.SetOperationFlags(FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT);
+        op.MoveItem(item, originalLocationItem, null, null);
         henforce(op.PerformOperations(), "Failed to perform file deletion operation");
     }
 }
@@ -810,7 +862,8 @@ else version(Windows) final class Trashcan : ITrashcan
     }
 
     private @trusted void trustedRestore(ref scope TrashcanItem item) {
-        RunVerb!"undelete"(_recycleBin, item.itemIdList);
+        //RunVerb!"undelete"(_recycleBin, item.itemIdList);
+        RunRestoreOperation(_recycleBin, item.itemIdList);
     }
     @safe void restore(ref scope TrashcanItem item) {
         trustedRestore(item);
