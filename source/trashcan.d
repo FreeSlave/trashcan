@@ -559,9 +559,9 @@ version(Windows) private
         return SysTime.init;
     }
 
-    @safe static void henforce(HRESULT hres, lazy string msg = null, string file = __FILE__, size_t line = __LINE__)
+    @trusted static void henforce(HRESULT hres, lazy string msg = null, string file = __FILE__, size_t line = __LINE__)
     {
-        if (hres != S_OK)
+        if (FAILED(hres))
             throw new WindowsException(hres, msg, file, line);
     }
 
@@ -626,18 +626,18 @@ version(Windows) private
     body {
         enforce(pidl !is null, "Empty trashcan item, can't run an operation");
         IShellItem item;
-        henforce(SUCCEEDED(SHCreateShellItem(null, folder, pidl, &item)), "Failed to get IShellItem");
+        henforce(SHCreateShellItem(null, folder, pidl, &item), "Failed to get IShellItem");
         assert(item);
         scope(exit) item.Release();
 
         IFileOperation op;
-        henforce(SUCCEEDED(CoCreateInstance(&CLSID_FileOperation, null, CLSCTX_ALL, &IID_IFileOperation, cast(void**)&op)), "Failed to create instance of IFileOperation");
+        henforce(CoCreateInstance(&CLSID_FileOperation, null, CLSCTX_ALL, &IID_IFileOperation, cast(void**)&op), "Failed to create instance of IFileOperation");
         assert(op);
         scope(exit) op.Release();
 
         op.SetOperationFlags(FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT);
         op.DeleteItem(item, null);
-        henforce(SUCCEEDED(op.PerformOperations()), "Failed to perform file deletion operation");
+        henforce(op.PerformOperations(), "Failed to perform file deletion operation");
     }
 }
 
@@ -802,10 +802,10 @@ else version(Windows) final class Trashcan : ITrashcan
         trustedRestore(item);
     }
     private @trusted void trustedErase(ref scope TrashcanItem item) {
-        RunVerb!"delete"(_recycleBin, item.itemIdList);
+        //RunVerb!"delete"(_recycleBin, item.itemIdList);
+        RunDeleteOperation(_recycleBin, item.itemIdList);
     }
     @safe void erase(ref scope TrashcanItem item) {
-        //RunDeleteOperation(_recycleBin, item.itemIdList);
         trustedErase(item);
     }
     @property @safe string displayName() nothrow {
