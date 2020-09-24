@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>http://127.0.0.1/index.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.byItem.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.displayName.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.erase.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.erase.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.restore.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.restore.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/moveToTrash.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.byItem.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.displayName.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.erase.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.recycleBin.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.restore.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/Trashcan.this.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.erase.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/ITrashcan.restore.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.deletionTime.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.isDir.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.itemIdList.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.restorePath.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.trashedPath.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashcanItem.trashInfoPath.html</loc></url>
+<url><loc>http://127.0.0.1/trashcan/TrashOptions.html</loc></url>
+</urlset>

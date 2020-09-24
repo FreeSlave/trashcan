@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<title>Enum TrashOptions</title>
+		<link rel="stylesheet" type="text/css" href="../styles/ddox.css"/>
+		<link rel="stylesheet" href="../prettify/prettify.css" type="text/css"/>
+		<script type="text/javascript" src="../scripts/jquery.js">/**/</script><script type="text/javascript" src="../scripts/ddox.js">/**/</script>
+	</head>
+	<body onload="setupDdox();">
+		<nav id="main-nav">
+			<noscript>
+				<p style="color: red">The search functionality needs JavaScript enabled</p>
+			</noscript>
+			<div id="symbolSearchPane" style="display: none">
+				<form action="#" method="GET">
+					<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(40);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();"/>
+				</form>
+				<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="../symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "../";
+$('#symbolSearchPane').show();</script>
+			</div>
+			<ul class="tree-view">
+				<li>
+					<div class="module selected">
+						<a href="../trashcan.html">trashcan</a>
+					</div>
+				</li>
+			</ul>
+		</nav>
+		<div id="main-contents">
+			<h1>Enum TrashOptions</h1><p>Flags to rule the trashing behavior.
+</p>
+			<div class="prototype">
+				<code class="lang-d">
+					<div class="single-prototype">
+			<span class="kwd">enum</span> <span class="typ">TrashOptions</span>
+			 <span class="pun">:</span> <span class="typ">int</span> <span class="pun">{ ... }</span>
+					</div>
+				</code>
+			</div>
+			<section><p><font color=blue>Valid only for freedesktop environments</font>.
+</p>
+</section>
+
+			<section><h2>Enum members</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td id="all">
+							<code>all</code>
+						</td>
+						<td>All flags set.
+</td>
+					</tr>
+					<tr>
+						<td id="checkStickyBit">
+							<code>checkStickyBit</code>
+						</td>
+						<td>Whether to check presence of 'sticky bit' on $topdir/.Trash directory.
+<section><p>Makes sense only in conjunction with <code class="lang-d"><a href="../trashcan/TrashOptions.html#useTopDirs"><span class="pln">useTopDirs</span></a></code>.
+</p>
+</section>
+</td>
+					</tr>
+					<tr>
+						<td id="fallbackToHomeDir">
+							<code>fallbackToHomeDir</code>
+						</td>
+						<td>If file that needs to be deleted resides on non-home partition
+ and checks for top trash directories failed,
+ fallback to home trash directory.
+<section><p>Makes sense only in conjunction with <code class="lang-d"><a href="../trashcan/TrashOptions.html#useTopDirs"><span class="pln">useTopDirs</span></a></code>.
+</p>
+</section>
+</td>
+					</tr>
+					<tr>
+						<td id="fallbackToUserDir">
+							<code>fallbackToUserDir</code>
+						</td>
+						<td>If file that needs to be deleted resides on non-home partition
+ and top trash directory ($topdir/.Trash/$uid) failed some check,
+ fallback to user top trash directory ($topdir/.Trash-$uid).
+<section><p>Makes sense only in conjunction with <code class="lang-d"><a href="../trashcan/TrashOptions.html#useTopDirs"><span class="pln">useTopDirs</span></a></code>.
+</p>
+</section>
+</td>
+					</tr>
+					<tr>
+						<td id="none">
+							<code>none</code>
+						</td>
+						<td>No options. Just move file to user home trash directory
+ not paying attention to partition where file resides.
+</td>
+					</tr>
+					<tr>
+						<td id="useTopDirs">
+							<code>useTopDirs</code>
+						</td>
+						<td>Whether to use top trash directories at all.
+<section><p>If no <code class="lang-d"><a href="../trashcan/TrashOptions.html#fallbackToUserDir"><span class="pln">fallbackToUserDir</span></a></code> nor <code class="lang-d"><a href="../trashcan/TrashOptions.html#fallbackToHomeDir"><span class="pln">fallbackToHomeDir</span></a></code> flags are set,
+ and file that needs to be deleted resides on non-home partition,
+ and top trash directory ($topdir/.Trash/$uid) failed some check,
+ exception will be thrown. This can be used to report errors to administrator or user.
+</p>
+</section>
+</td>
+					</tr>
+				</table>
+			</section>
+			<section><h2>See Also</h2>
+<p><a href="https://specifications.freedesktop.org/trash-spec/trashspec-1.0.html">Trash specification</a>.
+</p>
+</section>
+
+			<footer>
+				<table class="license-info">
+					<tr>
+						<th>Authors</th>
+						<td>
+							
+						</td>
+					</tr>
+					<tr>
+						<th>Copyright</th>
+						<td>
+							<p>Roman Chistokhodov, 2016
+</p>
+
+						</td>
+					</tr>
+					<tr>
+						<th>License</th>
+						<td>
+							<p><a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
+</p>
+
+						</td>
+					</tr>
+				</table>
+				<p class="faint">Generated using the DDOX documentation generator</p>
+			</footer>
+		</div>
+	</body>
+</html>

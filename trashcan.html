@@ -1,35 +1,154 @@
 <!DOCTYPE html>
 <html>
-<head>
-        <title>trashcan (trashcan)</title>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="stylesheet" href="style.css" />
-        <script src="script.js" type="text/javascript"></script>
-
-	
-	<link rel="prefetch" href="search-results.html" />
-</head>
-<body>
-	<div id="page-header">
-		<div id="logotype">
-		<span>Documentation</span>
-		<nav>
-			<a href="http://dlang.org/">Dlang.org</a>
+	<head>
+		<meta charset="UTF-8"/>
+		<title>Module trashcan</title>
+		<link rel="stylesheet" type="text/css" href="./styles/ddox.css"/>
+		<link rel="stylesheet" href="./prettify/prettify.css" type="text/css"/>
+		<script type="text/javascript" src="./scripts/jquery.js">/**/</script><script type="text/javascript" src="./scripts/ddox.js">/**/</script>
+	</head>
+	<body onload="setupDdox();">
+		<nav id="main-nav">
+			<noscript>
+				<p style="color: red">The search functionality needs JavaScript enabled</p>
+			</noscript>
+			<div id="symbolSearchPane" style="display: none">
+				<form action="#" method="GET">
+					<input id="symbolSearch" type="text" name="q" placeholder="Search for symbols" autocomplete="off" onchange="performSymbolSearch(40);" onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();"/>
+				</form>
+				<ul id="symbolSearchResults" class="symbolList" style="display: none"></ul><script type="application/javascript" src="./symbols.js"></script><script type="application/javascript">var symbolSearchRootDir = "./";
+$('#symbolSearchPane').show();</script>
+			</div>
+			<ul class="tree-view">
+				<li>
+					<div class="module selected">
+						<a href="./trashcan.html">trashcan</a>
+					</div>
+				</li>
+			</ul>
 		</nav>
-		</div>
+		<div id="main-contents">
+			<h1>Module trashcan</h1><p>Moving files and directories to trash can.
+</p>
+			<section></section>
+			<section>
+				<h2>Functions</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td>
+							<code>
+								<a id="moveToTrash" class="public" href="./trashcan/moveToTrash.html">moveToTrash</a><span class="decoration">(path, options)</span>
+							</code>
+						</td>
+						<td>Move file or directory to trash can.
+</td>
+					</tr>
+				</table>
+			</section>
+			<section>
+				<h2>Interfaces</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td>
+							<code>
+								<a id="ITrashcan" class="public" href="./trashcan/ITrashcan.html">ITrashcan</a>
+							</code>
+						</td>
+						<td>Interface to trashcan.
+</td>
+					</tr>
+				</table>
+			</section>
+			<section>
+				<h2>Classes</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td>
+							<code>
+								<a id="Trashcan" class="public" href="./trashcan/Trashcan.html">Trashcan</a>
+							</code>
+						</td>
+						<td>Implementation of <code class="lang-d"><a href="./trashcan/ITrashcan.html"><span class="typ">ITrashcan</span></a></code>. This class may have additional platform-dependent functions and different constructors.
+ This class is currently available only for <font color=blue>Windows</font> and <font color=blue>Freedesktop</font> (GNU/Linux, FreeBSD, etc.) platforms.
+</td>
+					</tr>
+				</table>
+			</section>
+			<section>
+				<h2>Structs</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td>
+							<code>
+								<a id="TrashcanItem" class="public" href="./trashcan/TrashcanItem.html">TrashcanItem</a>
+							</code>
+						</td>
+						<td>Item (file or folder) stored in the trashcan.
+</td>
+					</tr>
+				</table>
+			</section>
+			<section>
+				<h2>Enums</h2>
+				<table>
+					<col class="caption"/>
+					<tr>
+						<th>Name</th><th>Description</th>
+					</tr>
+					<tr>
+						<td>
+							<code>
+								<a id="TrashOptions" class="public" href="./trashcan/TrashOptions.html">TrashOptions</a>
+							</code>
+						</td>
+						<td>Flags to rule the trashing behavior.
+</td>
+					</tr>
+				</table>
+			</section>
+			<footer>
+				<table class="license-info">
+					<tr>
+						<th>Authors</th>
+						<td>
+							
+						</td>
+					</tr>
+					<tr>
+						<th>Copyright</th>
+						<td>
+							<p>Roman Chistokhodov, 2016
+</p>
 
-		<form id="search" action="search-docs.html">
-			<input placeholder="Find a symbol name..." name="searchTerm" type="search" />
-			<input type="submit" value="Go" />
-		</form>
-	</div>
-	<div id="page-body">
-		<div id="page-content">
-		<h1>trashcan</h1><div class="breadcrumbs"></div><div><div class="documentation-comment synopsis"><div><p>Moving files and directories to trash can.</p></div></div></div><div class="annotated-prototype"></div><h2 id="members"><a href="#members" class="header-anchor">Members</a></h2><h3 id="class" class="member-list-header hide-from-toc"><a href="#class" class="header-anchor">Classes</a></h3><dl class="member-list native"><dt><a href="trashcan.Trashcan.html">Trashcan</a><div style="max-width: 15ch;" class="simplified-prototype"><span class="builtin-type">class</span> <span class="name">Trashcan</span></div></dt><dd><div><p>Implementation of <tt class="D highlighted"><a title="trashcan.ITrashcan" href="trashcan.ITrashcan.html" class="hid">ITrashcan</a></tt>. This class may have additional platform-dependent functions and different constructors.</p></div></dd></dl><h3 id="enum" class="member-list-header hide-from-toc"><a href="#enum" class="header-anchor">Enums</a></h3><dl class="member-list native"><dt><a href="trashcan.TrashOptions.html">TrashOptions</a><div style="max-width: 18ch;" class="simplified-prototype"><span class="builtin-type">enum</span> <span class="name">TrashOptions</span></div></dt><dd><div><p>Flags to rule the trashing behavior.</p></div></dd></dl><h3 id="function" class="member-list-header hide-from-toc"><a href="#function" class="header-anchor">Functions</a></h3><dl class="member-list native"><dt><a href="trashcan.moveToTrash.html">moveToTrash</a><div style="max-width: 77ch;" class="simplified-prototype"><tt class="highlighted"><span class="type">void</span></tt> <span class="name">moveToTrash</span><tt class="highlighted">(<span class="type">string</span> <span class="hid">path</span>, <span class="hid">TrashOptions</span> <span class="hid">options</span> = <span class="hid">TrashOptions</span>.<span class="hid">all</span>)</tt></div></dt><dd><div><p>Move file or directory to trash can.</p></div></dd></dl><h3 id="interface" class="member-list-header hide-from-toc"><a href="#interface" class="header-anchor">Interfaces</a></h3><dl class="member-list native"><dt><a href="trashcan.ITrashcan.html">ITrashcan</a><div style="max-width: 20ch;" class="simplified-prototype"><span class="builtin-type">interface</span> <span class="name">ITrashcan</span></div></dt><dd><div><p>Interface to trashcan.</p></div></dd></dl><h3 id="struct" class="member-list-header hide-from-toc"><a href="#struct" class="header-anchor">Structs</a></h3><dl class="member-list native"><dt><a href="trashcan.TrashcanItem.html">TrashcanItem</a><div style="max-width: 20ch;" class="simplified-prototype"><span class="builtin-type">struct</span> <span class="name">TrashcanItem</span></div></dt><dd><div><p>Item (file or folder) stored in the trashcan.</p></div></dd></dl><div><h2 id="meta"><a href="#meta" class="header-anchor">Meta</a></h2><div class="documentation-comment source-section other-section"><h3 id="source"><a href="#source" class="header-anchor">Source</a></h3><div><p><a href="source/trashcan.d.html">See Source File</a><br /></p></div></div><div class="documentation-comment license-section other-section"><h3 id="license"><a href="#license" class="header-anchor">License</a></h3><div><p><a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.</p></div></div><div class="documentation-comment copyright-section other-section"><h3 id="copyright"><a href="#copyright" class="header-anchor">Copyright</a></h3><div><p>Roman Chistokhodov, 2016</p></div></div></div></div>
-		<div id="page-nav">
-		<span class="type-separator">modules</span><ul><li><a href="trashcan.html" class="module current">trashcan</a></li></ul></div>
-	</div>
-	<div id="page-footer">Page generated by <a href="https://github.com/adamdruppe/adrdox">adrdox</a></div>
-</body>
+						</td>
+					</tr>
+					<tr>
+						<th>License</th>
+						<td>
+							<p><a href="http://www.boost.org/LICENSE_1_0.txt">Boost License 1.0</a>.
+</p>
+
+						</td>
+					</tr>
+				</table>
+				<p class="faint">Generated using the DDOX documentation generator</p>
+			</footer>
+		</div>
+	</body>
 </html>
