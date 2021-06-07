@@ -1,0 +1,48 @@
+name: build
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  release:
+    types: [published]
+
+jobs:
+  Build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        dc:
+          - ldc-latest
+          - dmd-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Setup D
+        uses: dlang-community/setup-dlang@v1
+        with:
+          compiler: ${{ matrix.dc }}
+
+      # Build
+
+      - name: Build
+        run: |
+          dub build --build=release
+      - name: Test Put file into trashcan
+        run: |
+          echo "Hello world!" > "to_delete.txt"
+          dub --single examples/put.d -- "to_delete.txt"
+      - name: Test Put directory into trashcan
+        run: |
+          mkdir testdir
+          echo "Hello world!" > "testdir/hello.txt"
+          dub --single examples/put.d -- "testdir"
+      - name: List files in trashcan
+        if: contains(matrix.os, 'ubuntu') || contains(matrix.os, 'windows')
+        run:
+          dub --single examples/manage.d -- --list

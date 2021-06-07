@@ -1,6 +1,6 @@
 # Trash can
-
-[![Build Status](https://travis-ci.org/FreeSlave/trashcan.svg?branch=master)](https://travis-ci.org/FreeSlave/trashcan) [![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/FreeSlave/trashcan?branch=master&svg=true)](https://ci.appveyor.com/project/FreeSlave/trashcan)
+[![Build Status](https://github.com/FreeSlave/trashcan/actions/workflows/ci.yml/badge.svg)](https://github.com/FreeSlave/trashcan/actions/workflows/ci.yml)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/FreeSlave/trashcan?branch=master&svg=true)](https://ci.appveyor.com/project/FreeSlave/trashcan)
 
 Trash can operations implemented in D programming language.
 The **moveToTrash** function places a passed file or directory to trash can. The **Trashcan** class allows to list trashcan contents, restore or delete items.
