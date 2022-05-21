@@ -106,7 +106,7 @@ private:
     in {
         assert(path.isAbsolute);
     }
-    body {
+    do {
         return volumePath(path);
     }
 
@@ -585,7 +585,7 @@ version(Windows) private
         assert(folder);
         assert(pidl);
     }
-    body {
+    do {
         STRRET strRet;
         if (SUCCEEDED(folder.GetDisplayNameOf(pidl, SHGNO.SHGDN_NORMAL, &strRet)))
             return StrRetToString(strRet, pidl);
@@ -597,7 +597,7 @@ version(Windows) private
         assert(folder);
         assert(pidl);
     }
-    body {
+    do {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
             return StrRetToString(details.str, pidl);
@@ -609,7 +609,7 @@ version(Windows) private
         assert(folder);
         assert(pidl);
     }
-    body {
+    do {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
             return StrRetToWString(details.str, pidl);
@@ -621,7 +621,7 @@ version(Windows) private
         assert(folder);
         assert(pidl);
     }
-    body {
+    do {
         SHELLDETAILS details;
         if(SUCCEEDED(folder.GetDetailsOf(pidl, index, &details)))
             return StrRetToSysTime(details.str, pidl);
@@ -632,7 +632,7 @@ version(Windows) private
     in {
         assert(folder);
     }
-    body {
+    do {
         enforce(pidl !is null, "Empty trashcan item, can't run an operation");
         IContextMenu contextMenu;
         henforce(folder.GetUIObjectOf(null, 1, cast(LPCITEMIDLIST*)(&pidl), &IID_IContextMenu, null, cast(LPVOID *)&contextMenu), "Failed to get context menu ui object");
