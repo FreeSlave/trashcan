@@ -131,7 +131,7 @@ private:
     in {
         assert(topdir.length);
     }
-    body {
+    do {
         string trashDir = buildPath(topdir, ".Trash");
         stat_t trashStat;
         enforce(lstat(trashDir.toStringz, &trashStat) == 0, "Top trash directory does not exist");
@@ -666,7 +666,7 @@ version(Windows) private
     in {
         assert(folder);
     }
-    body {
+    do {
         enforce(pidl !is null, "Empty trashcan item, can't run a delete operation");
         IShellItem item = CreateShellItem(folder, pidl);
         scope(exit) item.Release();
@@ -683,7 +683,7 @@ version(Windows) private
     in {
         assert(folder);
     }
-    body {
+    do {
         enforce(pidl !is null, "Empty trashcan item, can't run a restore operation");
 
         import std.utf;
