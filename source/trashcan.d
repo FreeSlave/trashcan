@@ -182,8 +182,13 @@ private:
     alias int OSStatus;
     alias uint OptionBits;
 
-    extern(C) @nogc @system OSStatus _dummy_FSPathMakeRefWithOptions(const(char)* path, OptionBits, FSRef*, Boolean*) nothrow {return 0;}
-    extern(C) @nogc @system OSStatus _dummy_FSMoveObjectToTrashSync(const(FSRef)*, FSRef*, OptionBits) nothrow {return 0;}
+    version (TrashCanStatic) {
+        extern(C) @nogc @system OSStatus FSPathMakeRefWithOptions(const(char)* path, OptionBits, FSRef*, Boolean*) nothrow;
+        extern(C) @nogc @system OSStatus FSMoveObjectToTrashSync(const(FSRef)*, FSRef*, OptionBits) nothrow;
+    } else {
+        extern(C) @nogc @system OSStatus _dummy_FSPathMakeRefWithOptions(const(char)* path, OptionBits, FSRef*, Boolean*) nothrow {return 0;}
+        extern(C) @nogc @system OSStatus _dummy_FSMoveObjectToTrashSync(const(FSRef)*, FSRef*, OptionBits) nothrow {return 0;}
+    }
 }
 
 /**
@@ -222,27 +227,28 @@ private:
             throw new Exception(format("SHFileOperation failed with error code %d", r));
         }
     } else version(OSX) {
-        void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
-        if (handle !is null) {
+        version (TrashCanStatic) {}
+        else {
+            void* handle = dlopen("CoreServices.framework/Versions/A/CoreServices", RTLD_NOW | RTLD_LOCAL);
+            if (handle is null)
+                throw new Exception(fromStringz(dlerror()).idup);
             scope(exit) dlclose(handle);
 
-            auto ptrFSPathMakeRefWithOptions = cast(typeof(&_dummy_FSPathMakeRefWithOptions))dlsym(handle, "FSPathMakeRefWithOptions");
-            if (ptrFSPathMakeRefWithOptions is null) {
+            auto FSPathMakeRefWithOptions = cast(typeof(&_dummy_FSPathMakeRefWithOptions))dlsym(handle, "FSPathMakeRefWithOptions");
+            if (FSPathMakeRefWithOptions is null) {
                 throw new Exception(fromStringz(dlerror()).idup);
             }
 
-            auto ptrFSMoveObjectToTrashSync = cast(typeof(&_dummy_FSMoveObjectToTrashSync))dlsym(handle, "FSMoveObjectToTrashSync");
-            if (ptrFSMoveObjectToTrashSync is null) {
+            auto FSMoveObjectToTrashSync = cast(typeof(&_dummy_FSMoveObjectToTrashSync))dlsym(handle, "FSMoveObjectToTrashSync");
+            if (FSMoveObjectToTrashSync is null) {
                 throw new Exception(fromStringz(dlerror()).idup);
             }
-
-            FSRef source;
-            enforce(ptrFSPathMakeRefWithOptions(toStringz(path), 1, &source, null) == 0, "Could not make FSRef from path");
-            FSRef target;
-            enforce(ptrFSMoveObjectToTrashSync(&source, &target, 0) == 0, "Could not move path to trash");
-        } else {
-            throw new Exception(fromStringz(dlerror()).idup);
         }
+
+        FSRef source;
+        enforce(FSPathMakeRefWithOptions(toStringz(path), 1, &source, null) == 0, "Could not make FSRef from path");
+        FSRef target;
+        enforce(FSMoveObjectToTrashSync(&source, &target, 0) == 0, "Could not move path to trash");
     } else {
         static if (isFreedesktop) {
             string dataPath = xdgDataHome(null, true);
